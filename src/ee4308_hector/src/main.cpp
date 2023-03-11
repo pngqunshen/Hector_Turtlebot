@@ -154,26 +154,55 @@ int main(int argc, char **argv)
     ROS_INFO(" HMAIN : ===== BEGIN =====");
     HectorState state = TAKEOFF;
     ros::Rate rate(main_iter_rate);
+    double start_time = ros::Time::now().toSec();
+    std::vector<double> trajectory(12);
+
     while (ros::ok() && nh.param("run", true))
     {
         // get topics
         ros::spinOnce();
 
-        /* // remove this block comment (1/2)
+        // remove this block comment (1/2)
 
         //// IMPLEMENT ////
         
         if (state == TAKEOFF)
         {   // Initial State
             // Disable Rotate
-            msg_rotate.data = false;
-            pub_rotate.publish(msg_rotate)
-
+            double time = ros::Time::now().toSec();
+            msg_rotate.data = false;    
+            pub_rotate.publish(msg_rotate);
+            Position target = {initial_x,initial_y}
+            if (abs(z - height) < close_enough){
+                state = TURTLE;
+                trajectory = generate_trajectory(Position(x,y), Position(turtle_x, turtle_y), average_speed);
+                pub_traj.publish(get_path_from_traj(trajectory, 1/main_iter_rate, Position(x,y), Position(turtle_x, turtle_y), average_speed));
+                start_time = time;
+                target = get_next_goal(trajectory, time - start_time);
+            }
+            
+            msg_target.point.x = target.x;
+            msg_target.point.y = target.y;
+            msg_target.point.z = height;
+            pub_target.publish(msg_target);
             // Enable Rotate when the height is reached
         }
         else if (state == TURTLE)
         {   // flying to turtlebot
-            
+            double time = ros::Time::now().toSec();
+            msg_rotate.data = true;
+            pub_rotate.publish(msg_rotate);
+            if (dist_euc(Position(x,y), Position(turtle_x, turtle_y)) < close_enough){
+                state = GOAL;
+                trajectory = generate_trajectory(Position(x,y), Position(goal_x, goal_y), average_speed);
+                pub_traj.publish(get_path_from_traj(trajectory, 1/main_iter_rate, Position(x,y), Position(goal_x, goal_y), average_speed));
+                start_time = time;
+            }
+            Position target = get_next_goal(trajectory, time - start_time);
+            msg_target.point.x = target.x;
+            msg_target.point.y = target.y;
+            msg_target.point.z = height;
+            pub_target.publish(msg_target);
         }
         else if (state == START)
         {   // flying to hector's starting position
@@ -181,17 +210,49 @@ int main(int argc, char **argv)
             { // use this if else case to track when the turtle reaches the final goal
                 state = LAND;
             }
+            double time = ros::Time::now().toSec();
+            msg_rotate.data = true;
+            pub_rotate.publish(msg_rotate);
+            if (dist_euc(Position(x,y), Position(turtle_x, turtle_y)) < close_enough){
+                state = TURTLE;
+                trajectory = generate_trajectory(Position(x,y), Position(turtle_x, turtle_y), average_speed);
+                pub_traj.publish(get_path_from_traj(trajectory, 1/main_iter_rate, Position(x,y), Position(turtle_x, turtle_y), average_speed));
+                start_time = time;
+            }
+            Position target = get_next_goal(trajectory, time - start_time);
+            msg_target.point.x = target.x;
+            msg_target.point.y = target.y;
+            msg_target.point.z = height;
+            pub_target.publish(msg_target);
         }
         else if (state == GOAL)
         {   // flying to goal
-            
+            double time = ros::Time::now().toSec();
+            msg_rotate.data = true;
+            pub_rotate.publish(msg_rotate);
+            if (dist_euc(Position(x,y), Position(turtle_x, turtle_y)) < close_enough){
+                state = START;
+                trajectory = generate_trajectory(Position(x,y), Position(initial_x, initial_y), average_speed);
+                pub_traj.publish(get_path_from_traj(trajectory, 1/main_iter_rate, Position(x,y), Position(initial_x, initial_y), average_speed));
+                start_time = time;
+            }
+            Position target = get_next_goal(trajectory, time - start_time);
+            msg_target.point.x = target.x;
+            msg_target.point.y = target.y;
+            msg_target.point.z = height;
+            pub_target.publish(msg_target);
         }
         else if (state == LAND)
         {   // reached hector's starting position, and trying to land. Can disable rotation.
-            
+            msg_rotate.data = false;
+            pub_rotate.publish(msg_rotate);
+            msg_target.point.x = initial_x;
+            msg_target.point.y = initial_y;
+            msg_target.point.z = initial_z;
+            pub_target.publish(msg_target);
         }
 
-        */ // remove this block comment (2/2)
+        // remove this block comment (2/2)
 
         if (verbose)
             ROS_INFO_STREAM(" HMAIN : " << to_string(state));
@@ -202,4 +263,61 @@ int main(int argc, char **argv)
     nh.setParam("run", false); // turns off other nodes
     ROS_INFO(" HMAIN : ===== END =====");
     return 0;
+}
+
+std::vector<double> generate_trajectory(Position pos_begin, Position pos_end, double average_speed){
+    double Dx = pos_end.x - pos_begin.x;
+    double Dy = pos_end.y - pos_begin.y;
+    double duration = sqrt(Dx*Dx + Dy*Dy) / average_speed;
+
+    std::vector<double> coefficients(12); // idx 0-5 are x coeff, idx 6-11 are y coeff
+    double xCoefficients[6] = {0,0,0,0,0,0};
+    double Minv[6][6] = 
+        {{1, 0, 0, 0, 0, 0},
+        {0, 1, 0, 0, 0, 0},
+        {0, 0, 0.5, 0, 0, 0},
+        {-10/pow(duration, 3), -6/pow(duration,2), -3/(2*duration), 10/pow(duration,3), -4/pow(duration,2), 1/(2*duration)},
+        {15/pow(duration,4), 8/pow(duration,3), 3/(2*pow(duration,2)), -15/pow(duration,4), 7/pow(duration,3), -1/pow(duration,2)},
+        {-6/pow(duration,5), -3/pow(duration,4), -1/(2*pow(duration,3)), 6/pow(duration,5), -3/pow(duration,4), 1/(2*pow(duration,3))
+        }};
+    double x[6] = {pos_begin.x, 0, 0, pos_end.x, 0, 0};
+
+    double yCoefficients[6] = {0,0,0,0,0,0};
+    double yMinv[6][6];
+    double y[6] = {pos_begin.y, 0, 0, pos_end.y, 0, 0};
+
+
+    for(int i = 0; i < 6; i++){
+        for (int j = 0; j < 6; j++){
+            xCoefficients[i] += (Minv[i][j] * x[j]);
+            yCoefficients[i] += (Minv[i][j] * y[j]);
+            coefficients[i] += (Minv[i][j] * x[j]);
+            coefficients[i+6] += (Minv[i][j] * y[j]);
+        }
+    }
+    return coefficients;
+
+}
+
+Position get_next_goal(std::vector<double> trajectory, double t){
+    Position target = {0,0};
+        for (int j = 0; j < 6; j++){
+            target.x += trajectory[j] * pow(t,j);
+            target.y += trajectory[j + 6] * pow(t,j);
+        }
+    return target;
+}
+
+std::vector<Position> get_path_from_traj(std::vector<double> trajectory, double target_dt, Position start, Position end, double average_speed){
+    std::vector<Position> path = {start};
+    double duration = dist_euc(start, end) / average_speed;
+    for (int i = 0; i < duration/target_dt; i++){
+        Position interpolated_target = {0,0};
+        for (int j = 0; j < 6; j++){
+            interpolated_target.x += trajectory[j] * pow(target_dt * i,j);
+            interpolated_target.y += trajectory[j + 6] * pow(target_dt * i,j);
+        }
+        path.push_back(interpolated_target);
+    }
+    return path;
 }
