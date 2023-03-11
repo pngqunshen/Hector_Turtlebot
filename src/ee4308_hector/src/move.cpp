@@ -129,6 +129,8 @@ int main(int argc, char **argv)
     double cmd_lin_vel_x, cmd_lin_vel_y, cmd_lin_vel_z, cmd_lin_vel_a;
     double dt;
     double prev_time = ros::Time::now().toSec();
+    double x_integral, y_integral, z_integral = 0;
+    double e_xprev, e_yprev, e_zprev = 0;
 
     // main loop
     while (ros::ok() && nh.param("run", true))
@@ -140,6 +142,32 @@ int main(int argc, char **argv)
         if (dt == 0) // ros doesn't tick the time fast enough
             continue;
         prev_time += dt;
+        cmd_lin_vel_a = 0;
+        if (rotate){
+            cmd_lin_vel_a = 0.5;
+        }
+
+        double e_x = target_x - x;
+        x_integral += e_x *dt;
+        double x_derivative = (e_x - e_xprev) / dt;
+
+        double e_y = target_y - y;
+        y_integral += e_y *dt;
+        double y_derivative = (e_y - e_yprev) / dt;
+
+        double e_z = target_z - z;
+        z_integral += e_z *dt;
+        double z_derivative = (e_z - e_zprev) / dt;
+
+        e_xprev = e_x;
+        e_yprev = e_y;
+        e_zprev = e_z;
+
+        cmd_lin_vel_x = Kp_lin * e_x + Ki_lin * x_integral + Kd_lin * x_derivative;
+
+        cmd_lin_vel_y = Kp_lin * e_y + Ki_lin * y_integral + Kd_lin * y_derivative;
+
+        cmd_lin_vel_z = Kp_lin * e_z + Ki_lin * z_integral + Kd_lin * z_derivative; 
 
         // publish speeds
         msg_cmd.linear.x = cmd_lin_vel_x;
