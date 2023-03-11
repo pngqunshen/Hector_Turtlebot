@@ -10,7 +10,7 @@ main_iter_rate: 25
 
 # motion
 verbose_motion: true
-use_internal_odom: false
+use_internal_odom: true
 axle_track: 0.16
 wheel_radius: 0.033
 weight_odom_v: 0.5
