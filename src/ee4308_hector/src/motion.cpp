@@ -54,6 +54,58 @@ void cbImu(const sensor_msgs::Imu::ConstPtr &msg)
     uz = msg->linear_acceleration.z;
     
     //// IMPLEMENT IMU ////
+    cv::Matx21d imu_acc = {ux, uy};
+    // X
+    cv::Matx22d F_xk = {
+        1, imu_dt,
+        0, 1
+    };
+    cv::Matx22d W_xk = {
+        -0.5*pow(imu_dt, 2)*cos(A(0)), 0.5*pow(imu_dt, 2)*sin(A(0)),
+        -imu_dt*cos(A(0))            , imu_dt*sin(A(0)) 
+    };
+    cv::Matx22d Qx = {
+        qx, 0,
+        0 , qy
+    };
+    X = F_xk*X + W_xk*imu_acc;
+    P_x = F_xk*P_x*F_xk.t() + W_xk*Qx*W_xk.t();
+
+    // Y
+    cv::Matx22d F_yk = {
+        1, imu_dt,
+        0, 1
+    };
+    cv::Matx22d W_yk = {
+        -0.5*pow(imu_dt, 2)*sin(A(0)),-0.5*pow(imu_dt, 2)*cos(A(0)),
+        -imu_dt*sin(A(0))            ,-imu_dt*cos(A(0)) 
+    };
+    cv::Matx22d Qy = {
+        qx, 0,
+        0 , qy
+    };
+    Y = F_yk*Y + W_yk*imu_acc;
+    P_y = F_yk*P_y*F_yk.t() + W_yk*Qy*W_yk.t();
+
+    // Z
+    cv::Matx22d F_zk = {
+        1, imu_dt,
+        0, 1
+    };
+    cv::Matx21d W_zk = {0.5*pow(imu_dt, 2), imu_dt};
+    double Qz = qz;
+    Z = F_zk*Z + W_zk*uz;
+    P_z = F_zk*P_z*F_zk.t() + W_zk*Qz*W_zk.t();
+
+    // A
+    cv::Matx22d F_ak = {
+        1, 0,
+        0, 0
+    };
+    cv::Matx21d W_ak = {imu_dt, 1};
+    double Qa = qa;
+    A = F_ak*A + W_ak*uz;
+    P_a = F_ak*P_a*F_ak.t() + W_ak*Qa*W_ak.t();
 }
 
 // --------- GPS ----------
