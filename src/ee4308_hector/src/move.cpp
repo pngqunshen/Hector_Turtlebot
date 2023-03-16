@@ -13,6 +13,8 @@
 #include <fstream>
 #include <signal.h>
 #include "common.hpp"
+#include <opencv2/core/matx.hpp>
+
 #define NaN std::numeric_limits<double>::quiet_NaN()
 
 ros::ServiceClient en_mtrs;
@@ -129,8 +131,10 @@ int main(int argc, char **argv)
     double cmd_lin_vel_x, cmd_lin_vel_y, cmd_lin_vel_z, cmd_lin_vel_a;
     double dt;
     double prev_time = ros::Time::now().toSec();
-    double x_integral, y_integral, z_integral = 0;
-    double e_xprev, e_yprev, e_zprev = 0;
+
+    cv::Vec3d lin_integral = {0,0,0};
+    cv::Vec3d e_prev = {0,0,0};
+    cv::Vec3d lin_vel = {0,0,0};
 
     // main loop
     while (ros::ok() && nh.param("run", true))
@@ -144,35 +148,32 @@ int main(int argc, char **argv)
         prev_time += dt;
         cmd_lin_vel_a = 0;
         if (rotate){
-            cmd_lin_vel_a = 0.5;
+            cmd_lin_vel_a = yaw_rate;
         }
+        cv::Matx33d rotation = {cos(a), sin(a), 0,
+                                -sin(a),  cos(a), 0,
+                                0,        0,     1};
+        
 
         double e_x = target_x - x;
-        x_integral += e_x *dt;
-        double x_derivative = (e_x - e_xprev) / dt;
-
         double e_y = target_y - y;
-        y_integral += e_y *dt;
-        double y_derivative = (e_y - e_yprev) / dt;
-
         double e_z = target_z - z;
-        z_integral += e_z *dt;
-        double z_derivative = (e_z - e_zprev) / dt;
 
-        e_xprev = e_x;
-        e_yprev = e_y;
-        e_zprev = e_z;
+        cv::Vec3d lin_e = {e_x, e_y, e_z};
+        cv::Vec3d lin_derivative = (lin_e - e_prev) / dt;
+        lin_integral += lin_e;
+        e_prev = lin_e;
 
-        cmd_lin_vel_x = Kp_lin * e_x + Ki_lin * x_integral + Kd_lin * x_derivative;
-
-        cmd_lin_vel_y = Kp_lin * e_y + Ki_lin * y_integral + Kd_lin * y_derivative;
-
-        cmd_lin_vel_z = Kp_lin * e_z + Ki_lin * z_integral + Kd_lin * z_derivative; 
+        lin_vel = (Kp_lin * lin_e) + (Ki_lin * lin_integral) + (Kd_lin * lin_derivative);
+        lin_vel = rotation * lin_vel;
 
         // publish speeds
         msg_cmd.linear.x = cmd_lin_vel_x;
         msg_cmd.linear.y = cmd_lin_vel_y;
         msg_cmd.linear.z = cmd_lin_vel_z;
+        msg_cmd.linear.x = lin_vel(0);
+        msg_cmd.linear.y = lin_vel(1);
+        msg_cmd.linear.z = lin_vel(2);
         msg_cmd.angular.z = cmd_lin_vel_a;
         pub_cmd.publish(msg_cmd);
 
