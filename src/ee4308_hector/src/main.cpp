@@ -71,62 +71,86 @@ void cbHVel(const geometry_msgs::Twist::ConstPtr &msg)
     vz = msg->linear.z;
     va = msg->angular.z;
 }
-std::vector<double> generate_trajectory(Position pos_begin, Position pos_end, double average_speed){
-    double Dx = pos_end.x - pos_begin.x;
-    double Dy = pos_end.y - pos_begin.y;
-    double duration = sqrt(Dx*Dx + Dy*Dy) / average_speed;
 
-    std::vector<double> coefficients(12); // idx 0-5 are x coeff, idx 6-11 are y coeff
-    double xCoefficients[6] = {0,0,0,0,0,0};
-    double Minv[6][6] = 
-        {{1, 0, 0, 0, 0, 0},
-        {0, 1, 0, 0, 0, 0},
-        {0, 0, 0.5, 0, 0, 0},
-        {-10/pow(duration, 3), -6/pow(duration,2), -3/(2*duration), 10/pow(duration,3), -4/pow(duration,2), 1/(2*duration)},
-        {15/pow(duration,4), 8/pow(duration,3), 3/(2*pow(duration,2)), -15/pow(duration,4), 7/pow(duration,3), -1/pow(duration,2)},
-        {-6/pow(duration,5), -3/pow(duration,4), -1/(2*pow(duration,3)), 6/pow(duration,5), -3/pow(duration,4), 1/(2*pow(duration,3))
-        }};
-    double x[6] = {pos_begin.x, 0, 0, pos_end.x, 0, 0};
+class Trajectory{
+    public:
+    Trajectory(){};
+    
+    void init_traj(Position pos_begin, Position pos_end, Position curr_speed, double average_speed, double desired_dt, double start_t){
+        double Dx = pos_end.x - pos_begin.x;
+        double Dy = pos_end.y - pos_begin.y;
+        duration = sqrt(Dx*Dx + Dy*Dy) / average_speed;
 
-    double yCoefficients[6] = {0,0,0,0,0,0};
-    double yMinv[6][6];
-    double y[6] = {pos_begin.y, 0, 0, pos_end.y, 0, 0};
+        xCoeff = {0,0,0,0,0,0};
+        yCoeff = {0,0,0,0,0,0};
 
+        cv::Matx66d Minv = {1, 0, 0, 0, 0, 0,
+        0, 1, 0, 0, 0, 0,
+        0, 0, 0.5, 0, 0, 0,
+        -10/pow(duration, 3), -6/pow(duration,2), -3/(2*duration), 10/pow(duration,3), -4/pow(duration,2), 1/(2*duration),
+        15/pow(duration,4), 8/pow(duration,3), 3/(2*pow(duration,2)), -15/pow(duration,4), 7/pow(duration,3), -1/pow(duration,2),
+        -6/pow(duration,5), -3/pow(duration,4), -1/(2*pow(duration,3)), 6/pow(duration,5), -3/pow(duration,4), 1/(2*pow(duration,3))
+        };
 
-    for(int i = 0; i < 6; i++){
-        for (int j = 0; j < 6; j++){
-            xCoefficients[i] += (Minv[i][j] * x[j]);
-            yCoefficients[i] += (Minv[i][j] * y[j]);
-            coefficients[i] += (Minv[i][j] * x[j]);
-            coefficients[i+6] += (Minv[i][j] * y[j]);
+        cv::Vec6d x = {pos_begin.x, curr_speed.x, 0, pos_end.x, 0, 0};
+        cv::Vec6d y = {pos_begin.y, curr_speed.y, 0, pos_end.y, 0, 0};
+
+        xCoeff = Minv * x;
+        yCoeff = Minv * y;
+        // std::vector<Position> path = {start};
+        // double duration = dist_euc(start, end) / average_speed;
+        path.poses.clear();
+        path.header.frame_id = "world"; 
+        
+        for (int i = 0; i < duration / desired_dt; i++){
+
+            geometry_msgs::PoseStamped pose;
+            pose.header.frame_id = "world";
+            for (int j = 0; j < 6; j++){
+                pose.pose.position.x += xCoeff[j] * pow(desired_dt * i,j);
+                pose.pose.position.y += yCoeff[j] * pow(desired_dt * i,j);
+            }
+            path.poses.push_back(pose);
+            path.poses.back().pose.position.z = 2;
         }
-    }
-    return coefficients;
-
-}
-
-Position get_next_goal(std::vector<double> trajectory, double t){
-    Position target = {0,0};
-        for (int j = 0; j < 6; j++){
-            target.x += trajectory[j] * pow(t,j);
-            target.y += trajectory[j + 6] * pow(t,j);
+        start_time = start_t;
+    };
+    
+    Position get_next_goal(double now){
+        double t = now - start_time;
+        if (t >= duration){
+            t = duration;
         }
-    return target;
-}
-
-std::vector<Position> get_path_from_traj(std::vector<double> trajectory, double target_dt, Position start, Position end, double average_speed){
-    std::vector<Position> path = {start};
-    double duration = dist_euc(start, end) / average_speed;
-    for (int i = 0; i < duration/target_dt; i++){
-        Position interpolated_target = {0,0};
+        Position target = {0,0};
         for (int j = 0; j < 6; j++){
-            interpolated_target.x += trajectory[j] * pow(target_dt * i,j);
-            interpolated_target.y += trajectory[j + 6] * pow(target_dt * i,j);
+            target.x += xCoeff[j] * pow(t,j);
+            target.y += yCoeff[j] * pow(t,j);
         }
-        path.push_back(interpolated_target);
-    }
-    return path;
-}
+        return target;
+    };
+
+    Position get_next_vel(double now){
+        double t = now - start_time;
+        if (t >= duration){
+            t = duration;
+        }
+        Position target = {0,0};
+        for (int j = 1; j < 6; j++){
+            target.x +=  j * xCoeff[j] * pow(t,j-1);
+            target.y += j * yCoeff[j] * pow(t,j-1);
+        }
+        return target;
+    };
+
+
+    cv::Vec6d xCoeff;
+    cv::Vec6d yCoeff;
+    double duration;
+    Position start;
+    Position stop;
+    double start_time;
+    nav_msgs::Path path;
+};
 
 int main(int argc, char **argv)
 {
@@ -211,40 +235,29 @@ int main(int argc, char **argv)
     HectorState state = TAKEOFF;
     ros::Rate rate(main_iter_rate);
     double start_time = ros::Time::now().toSec();
-    std::vector<double> trajectory(12);
 
+    Trajectory traj;
     while (ros::ok() && nh.param("run", true))
     {
         // get topics
         ros::spinOnce();
 
         // remove this block comment (1/2)
-
         //// IMPLEMENT ////
-        
+        double time_target = ros::Time::now().toSec() + 1/main_iter_rate;
+        double time_now = ros::Time::now().toSec();
         if (state == TAKEOFF)
         {   // Initial State
             // Disable Rotate
-            double time = ros::Time::now().toSec();
             msg_rotate.data = false;    
             pub_rotate.publish(msg_rotate);
             Position target = {initial_x,initial_y};
             if (abs(z - height) < close_enough){
                 state = TURTLE;
-                trajectory = generate_trajectory(Position(x,y), Position(turtle_x, turtle_y), average_speed);
-                std::vector<Position> path = get_path_from_traj(trajectory, 1/main_iter_rate, Position(x,y), Position(turtle_x, turtle_y), average_speed);
-                msg_traj.poses.clear();
-                    for (Position &pos : path)
-                    {
-                        msg_traj.poses.push_back(geometry_msgs::PoseStamped()); // insert a posestamped initialised to all 0
-                        msg_traj.poses.back().pose.position.x = pos.x;
-                        msg_traj.poses.back().pose.position.y = pos.y;
-                    }
-                    pub_traj.publish(msg_traj);
-                start_time = time;
-                target = get_next_goal(trajectory, time - start_time);
+                traj.init_traj(Position(x,y), Position(turtle_x, turtle_y), Position(vx, vy), average_speed, 1/main_iter_rate, time_now);
+                pub_traj.publish(traj.path);
+                target = traj.get_next_goal(time_target);
             }
-            
             msg_target.point.x = target.x;
             msg_target.point.y = target.y;
             msg_target.point.z = height;
@@ -253,24 +266,18 @@ int main(int argc, char **argv)
         }
         else if (state == TURTLE)
         {   // flying to turtlebot
-            double time = ros::Time::now().toSec();
             msg_rotate.data = true;
             pub_rotate.publish(msg_rotate);
             if (dist_euc(Position(x,y), Position(turtle_x, turtle_y)) < close_enough){
                 state = GOAL;
-                trajectory = generate_trajectory(Position(x,y), Position(goal_x, goal_y), average_speed);
-                std::vector<Position> path = get_path_from_traj(trajectory, 1/main_iter_rate, Position(x,y), Position(goal_x, goal_y), average_speed);
-                msg_traj.poses.clear();
-                    for (Position &pos : path)
-                    {
-                        msg_traj.poses.push_back(geometry_msgs::PoseStamped()); // insert a posestamped initialised to all 0
-                        msg_traj.poses.back().pose.position.x = pos.x;
-                        msg_traj.poses.back().pose.position.y = pos.y;
-                    }
-                    pub_traj.publish(msg_traj);
-                start_time = time;
+                traj.init_traj(Position(x,y), Position(goal_x, goal_y), Position(vx, vy), average_speed, 1/main_iter_rate, time_now);
+                pub_traj.publish(traj.path);
+            } else {
+                // traj.init_traj(Position(x,y), Position(turtle_x, turtle_y), Position(vx, vy), average_speed, 1/main_iter_rate);
+                traj.init_traj(traj.get_next_goal(time_target), Position(turtle_x, turtle_y), traj.get_next_vel(time_target), average_speed, 1/main_iter_rate, time_target);
+                pub_traj.publish(traj.path);
             }
-            Position target = get_next_goal(trajectory, time - start_time);
+            Position target = traj.get_next_goal(time_target);
             msg_target.point.x = target.x;
             msg_target.point.y = target.y;
             msg_target.point.z = height;
@@ -282,24 +289,14 @@ int main(int argc, char **argv)
             { // use this if else case to track when the turtle reaches the final goal
                 state = LAND;
             }
-            double time = ros::Time::now().toSec();
             msg_rotate.data = true;
             pub_rotate.publish(msg_rotate);
-            if (dist_euc(Position(x,y), Position(turtle_x, turtle_y)) < close_enough){
+            if (dist_euc(Position(x,y), Position(initial_x, initial_y)) < close_enough){
                 state = TURTLE;
-                trajectory = generate_trajectory(Position(x,y), Position(turtle_x, turtle_y), average_speed);
-               std::vector<Position> path = get_path_from_traj(trajectory, 1/main_iter_rate, Position(x,y), Position(turtle_x, turtle_y), average_speed);
-                msg_traj.poses.clear();
-                    for (Position &pos : path)
-                    {
-                        msg_traj.poses.push_back(geometry_msgs::PoseStamped()); // insert a posestamped initialised to all 0
-                        msg_traj.poses.back().pose.position.x = pos.x;
-                        msg_traj.poses.back().pose.position.y = pos.y;
-                    }
-                    pub_traj.publish(msg_traj);
-                start_time = time;
+                traj.init_traj(Position(x,y), Position(turtle_x, turtle_y), Position(vx, vy), average_speed, 1/main_iter_rate, time_now);
+                pub_traj.publish(traj.path);
             }
-            Position target = get_next_goal(trajectory, time - start_time);
+            Position target = traj.get_next_goal(time_target);
             msg_target.point.x = target.x;
             msg_target.point.y = target.y;
             msg_target.point.z = height;
@@ -307,25 +304,14 @@ int main(int argc, char **argv)
         }
         else if (state == GOAL)
         {   // flying to goal
-            double time = ros::Time::now().toSec();
             msg_rotate.data = true;
             pub_rotate.publish(msg_rotate);
-            if (dist_euc(Position(x,y), Position(turtle_x, turtle_y)) < close_enough){
+            if (dist_euc(Position(x,y), Position(goal_x, goal_y)) < close_enough){
                 state = START;
-                trajectory = generate_trajectory(Position(x,y), Position(initial_x, initial_y), average_speed);
-                std::vector<Position> path = get_path_from_traj(trajectory, 1/main_iter_rate, Position(x,y), Position(initial_x, initial_y), average_speed);
-                msg_traj.poses.clear();
-                    for (Position &pos : path)
-                    {
-                        msg_traj.poses.push_back(geometry_msgs::PoseStamped()); // insert a posestamped initialised to all 0
-                        msg_traj.poses.back().pose.position.x = pos.x;
-                        msg_traj.poses.back().pose.position.y = pos.y;
-                    }
-                    pub_traj.publish(msg_traj);
-                start_time = time;
-            }
-            Position target = get_next_goal(trajectory, time - start_time);
-            msg_target.point.x = target.x;
+                traj.init_traj(Position(x,y), Position(initial_x, initial_y), Position(vx, vy), average_speed, 1/main_iter_rate, time_now);
+                pub_traj.publish(traj.path);
+            } 
+            Position target = traj.get_next_goal(time_target);            msg_target.point.x = target.x;
             msg_target.point.y = target.y;
             msg_target.point.z = height;
             pub_target.publish(msg_target);
