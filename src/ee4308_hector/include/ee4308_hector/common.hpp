@@ -26,6 +26,7 @@ double dist_oct(Position src, Position tgt);
 double dist_oct(double src_x, double src_y, double tgt_x, double tgt_y);
 double dist_euc(Index src, Index tgt);
 double dist_euc(Position src, Position tgt);
+double dist_euc(Position3d src, Position3d tgt);
 double dist_euc(double src_x, double src_y, double tgt_x, double tgt_y);
 double heading(Position src, Position tgt); // overload
 double heading(double src_x, double src_y, double tgt_x, double tgt_y);

@@ -49,6 +49,12 @@ double dist_euc(Position src, Position tgt)
 {
     return dist_euc(src.x, src.y, tgt.x, tgt.y);
 }
+double dist_euc(Position3d src, Position3d tgt){
+    double Dx = tgt.x - src.x;
+    double Dy = tgt.y - src.y;
+    double Dz = tgt.z - src.z;
+    return sqrt(Dx*Dx + Dy*Dy + Dz*Dz);
+}
 double dist_euc(double src_x, double src_y, double tgt_x, double tgt_y)
 {
     double Dx = tgt_x - src_x;

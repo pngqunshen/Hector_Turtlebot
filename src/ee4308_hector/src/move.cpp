@@ -190,11 +190,14 @@ int main(int argc, char **argv)
         // if (z > 0.178 + (0.1 *  0.08) ){
         //     if (rise_time_start == -1){
         //         rise_time_start = ros::Time::now().toSec();
+        //         ROS_INFO("start");
         //     }
         // }
         // if (z > 0.178 + (0.9 * 0.08)){
         //     if (rise_time_end == -1){
         //         rise_time_end = ros::Time::now().toSec();
+        //         ROS_INFO("end");
+
         //     }
         //     if (z - (0.178 + 0.08) > max_overshoot){
         //         max_overshoot = z - (0.178 + 0.08);
@@ -202,7 +205,7 @@ int main(int argc, char **argv)
         // }
 
         // if (rise_time_end > 0){
-        //     ROS_INFO_STREAM("rise time " << (rise_time_end = rise_time_start));
+        //     ROS_INFO_STREAM("rise time " << (rise_time_end - rise_time_start));
         //     ROS_INFO_STREAM("max_overshoot " << max_overshoot);
         // }
         //end of pid tuning code
@@ -223,7 +226,7 @@ int main(int argc, char **argv)
         // }
 
         // if (rise_time_end > 0){
-        //     ROS_INFO_STREAM("rise time " << (rise_time_end = rise_time_start));
+        //     ROS_INFO_STREAM("rise time " << (rise_time_end - rise_time_start));
         //     ROS_INFO_STREAM("max_overshoot " << max_overshoot);
         // }
         //end of pid tuning code
