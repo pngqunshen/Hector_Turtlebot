@@ -5,6 +5,8 @@ Index::Index() : i(0), j(0) {};
 Index::Index(int i, int j) : i(i), j(j) {};
 Position::Position() : x(0), y(0) {};
 Position::Position(double x, double y) : x(x), y(y) {};
+Position3d::Position3d() : x(0), y(0), z(0) {};
+Position3d::Position3d(double x, double y, double z) : x(x), y(y), z(z) {};
 double sign(double value)
 {
     if (value > 0)

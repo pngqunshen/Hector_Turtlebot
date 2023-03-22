@@ -283,6 +283,7 @@ int main(int argc, char **argv)
                         msg_traj.poses.back().pose.position.x = pos.x;
                         msg_traj.poses.back().pose.position.y = pos.y;
                     }
+                    msg_traj.header.stamp = ros::Time::now();
                     pub_traj.publish(msg_traj);
 
                     // get new target

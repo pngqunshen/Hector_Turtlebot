@@ -136,6 +136,11 @@ int main(int argc, char **argv)
     cv::Vec3d e_prev = {0,0,0};
     cv::Vec3d lin_vel = {0,0,0};
 
+    //variables used for pid tuning
+    double rise_time_start = -1;
+    double rise_time_end = -1;
+    double max_overshoot = 0;
+
     // main loop
     while (ros::ok() && nh.param("run", true))
     {
@@ -164,7 +169,11 @@ int main(int argc, char **argv)
         lin_integral += lin_e;
         e_prev = lin_e;
 
-        lin_vel = (Kp_lin * lin_e) + (Ki_lin * lin_integral) + (Kd_lin * lin_derivative);
+        cv::Vec3d Kp = {Kp_lin, Kp_lin, Kp_z};
+        cv::Vec3d Ki = {Ki_lin, Ki_lin, Ki_z};
+        cv::Vec3d Kd = {Kd_lin, Kd_lin, Kd_z};
+
+        lin_vel = (Kp.mul(lin_e)) + (Ki.mul(lin_integral)) + (Kd.mul(lin_derivative));
         lin_vel = rotation * lin_vel;
 
         // publish speeds
@@ -177,6 +186,49 @@ int main(int argc, char **argv)
         msg_cmd.angular.z = cmd_lin_vel_a;
         pub_cmd.publish(msg_cmd);
 
+        //pid tuning code for z
+        // if (z > 0.178 + (0.1 *  0.08) ){
+        //     if (rise_time_start == -1){
+        //         rise_time_start = ros::Time::now().toSec();
+        //     }
+        // }
+        // if (z > 0.178 + (0.9 * 0.08)){
+        //     if (rise_time_end == -1){
+        //         rise_time_end = ros::Time::now().toSec();
+        //     }
+        //     if (z - (0.178 + 0.08) > max_overshoot){
+        //         max_overshoot = z - (0.178 + 0.08);
+        //     }
+        // }
+
+        // if (rise_time_end > 0){
+        //     ROS_INFO_STREAM("rise time " << (rise_time_end = rise_time_start));
+        //     ROS_INFO_STREAM("max_overshoot " << max_overshoot);
+        // }
+        //end of pid tuning code
+
+        //pid tuning code for lin
+        // if (x > 2 + (0.1 *  0.08) ){
+        //     if (rise_time_start == -1){
+        //         rise_time_start = ros::Time::now().toSec();
+        //     }
+        // }
+        // if (x > 2 + (0.9 * 0.08)){
+        //     if (rise_time_end == -1){
+        //         rise_time_end = ros::Time::now().toSec();
+        //     }
+        //     if (x - (2 + 0.08) > max_overshoot){
+        //         max_overshoot = x - (2 + 0.08);
+        //     }
+        // }
+
+        // if (rise_time_end > 0){
+        //     ROS_INFO_STREAM("rise time " << (rise_time_end = rise_time_start));
+        //     ROS_INFO_STREAM("max_overshoot " << max_overshoot);
+        // }
+        //end of pid tuning code
+
+
         //// IMPLEMENT /////
         
         // verbose
@@ -184,7 +236,6 @@ int main(int argc, char **argv)
         {
             // ROS_INFO(" HMOVE : Target(%6.3f, %6.3f, %6.3f) FV(%6.3f) VX(%6.3f) VY(%6.3f) VZ(%7.3f)", target_x, target_y, target_z, cmd_lin_vel, cmd_lin_vel_x, cmd_lin_vel_y, cmd_lin_vel_z);
         }
-
         // wait for rate
         rate.sleep();
     }

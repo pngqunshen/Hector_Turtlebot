@@ -13,6 +13,13 @@ struct Position
     Position();
     Position(double x, double y);
 };
+
+struct Position3d
+{
+    double x=0, y=0, z=0;
+    Position3d();
+    Position3d(double x, double y, double z);
+};
 double sign(double value); // sign function not defined in cmath
 double dist_oct(Index src, Index tgt);
 double dist_oct(Position src, Position tgt);
