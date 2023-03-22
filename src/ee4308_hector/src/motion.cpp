@@ -152,10 +152,10 @@ void cbSonar(const sensor_msgs::Range::ConstPtr &msg)
     if (!ready)
         return;
 
-    /*
+    
     //// IMPLEMENT SONAR ////
     z_snr = msg->range;
-    */
+    
 }
 
 // --------- GROUND TRUTH ----------
