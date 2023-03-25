@@ -9,8 +9,8 @@ log_odds_cap: 20
 main_iter_rate: 25 
 
 # motion
-verbose_motion: true
-use_internal_odom: false
+verbose_motion: false
+use_internal_odom: true
 axle_track: 0.16
 wheel_radius: 0.033
 weight_odom_v: 0.5
@@ -20,7 +20,7 @@ motion_iter_rate: 50
 
 # move
 enable_move: true
-verbose_move: true
+verbose_move: false
 Kp_lin: 4.4
 Ki_lin: 0.0
 Kd_lin: 0.4
