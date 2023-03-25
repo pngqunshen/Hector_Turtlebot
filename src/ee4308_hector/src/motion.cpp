@@ -116,24 +116,55 @@ const double DEG2RAD = M_PI / 180;
 const double RAD_POLAR = 6356752.3;
 const double RAD_EQUATOR = 6378137;
 double r_gps_x, r_gps_y, r_gps_z;
+
+cv::Matx31d initial_ECEF = {NaN, NaN, NaN};
+cv::Matx33d rot_m_n = {
+    1, 0, 0,
+    0, -1, 0,
+    0, 0, -1
+};
+
 void cbGps(const sensor_msgs::NavSatFix::ConstPtr &msg)
 {
     if (!ready)
         return;
 
-    /*
-    //// IMPLEMENT GPS /////
-    double lat = msg->latitude;
-    double lon = msg->longitude;
-    double alt = msg->altitude;
     
+    //// IMPLEMENT GPS /////
+    double lat = msg->latitude; //IN DEGREES
+    double lon = msg->longitude; //IN DEGREES
+    double alt = msg->altitude;
+
+    double lat_rad = DEG2RAD * lat;
+    double lon_rad = DEG2RAD * lon;
+
+    double eccentricity_sq = 1 - pow(RAD_POLAR, 2) / pow(RAD_EQUATOR, 2);
+    double n_phi = RAD_EQUATOR / sqrt(1 - eccentricity_sq * pow(sin(lat_rad), 2));
+    
+    cv::Matx31d ECEF = {
+        (n_phi + alt) * cos(lat_rad) * cos(lon_rad),
+        (n_phi + alt) * cos(lat_rad) * sin(lon_rad),
+        ((pow(RAD_POLAR,2) / pow(RAD_EQUATOR, 2)) * n_phi + alt) * sin(lat_rad)
+    };
+
+
+
     // for initial message -- you may need this:
     if (std::isnan(initial_ECEF(0)))
     {   // calculates initial ECEF and returns
         initial_ECEF = ECEF;
         return;
     }
-    */
+    
+    cv::Matx33d rot_e_n = {
+        -sin(lat_rad) * cos(lon_rad), -sin(lon_rad), -cos(lat_rad) * cos(lon_rad),
+        -sin(lat_rad) * sin(lon_rad), cos(lon_rad) , -cos(lat_rad) * sin(lon_rad),
+        cos(lat_rad)                , 0            , -sin(lat_rad)
+    };
+
+    cv::Matx31d local_NED = rot_e_n.t() * (ECEF - initial_ECEF);
+
+    GPS = rot_m_n * local_NED + initial_pos;
 }
 
 // --------- Magnetic ----------
@@ -173,10 +204,10 @@ void cbSonar(const sensor_msgs::Range::ConstPtr &msg)
     if (!ready)
         return;
 
-    /*
+    
     //// IMPLEMENT SONAR ////
     z_snr = msg->range;
-    */
+    
 }
 
 // --------- GROUND TRUTH ----------
