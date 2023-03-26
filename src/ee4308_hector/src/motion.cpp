@@ -108,6 +108,28 @@ void cbImu(const sensor_msgs::Imu::ConstPtr &msg)
     P_a = F_ak*P_a*F_ak.t() + W_ak*Qa*W_ak.t();
 }
 
+// --------- EKF CORRECTION ----------
+void ekfCorrectionX(double Y_k, double h, cv::Matx12d H_k, double V_k, double R_k) {
+    cv::Matx21d K_k = P_x*H_k.t() * 
+        (1 / ((H_k*P_x*H_k.t())(0) + V_k*R_k*V_k));
+    X = X + K_k*(Y_k - h);
+    P_x = P_x - K_k*H_k*P_x;
+}
+
+void ekfCorrectionY(double Y_k, double h, cv::Matx12d H_k, double V_k, double R_k) {
+    cv::Matx21d K_k = P_y*H_k.t() * 
+        (1 / ((H_k*P_y*H_k.t())(0) + V_k*R_k*V_k));
+    Y = Y + K_k*(Y_k - h);
+    P_y = P_y - K_k*H_k*P_y;
+}
+
+void ekfCorrectionZ(double Y_k, double h, cv::Matx12d H_k, double V_k, double R_k) {
+    cv::Matx21d K_k = P_z*H_k.t() * 
+        (1 / ((H_k*P_z*H_k.t())(0) + V_k*R_k*V_k));
+    Z = Z + K_k*(Y_k - h);
+    P_z = P_z - K_k*H_k*P_z;
+}
+
 // --------- GPS ----------
 // https://docs.ros.org/en/api/sensor_msgs/html/msg/NavSatFix.html
 cv::Matx31d GPS = {NaN, NaN, NaN};
@@ -123,6 +145,9 @@ cv::Matx33d rot_m_n = {
     0, -1,  0,
     0,  0, -1
 };
+// EKF Correction Stuff for GPS
+cv::Matx12d H_gps = {1, 0};
+double V_gps = 1;
 
 void cbGps(const sensor_msgs::NavSatFix::ConstPtr &msg)
 {
@@ -147,8 +172,6 @@ void cbGps(const sensor_msgs::NavSatFix::ConstPtr &msg)
         ((pow(RAD_POLAR,2) / pow(RAD_EQUATOR, 2)) * n_phi + alt) * sin(lat_rad)
     };
 
-
-
     // for initial message -- you may need this:
     if (std::isnan(initial_ECEF(0)))
     {   // calculates initial ECEF and returns
@@ -166,23 +189,17 @@ void cbGps(const sensor_msgs::NavSatFix::ConstPtr &msg)
 
     GPS = rot_m_n * local_NED + initial_pos;
 
-    cv::Matx32d H_gps = {
-        1, 0,
-        1, 0,
-        1, 0
-    };
+    double Y_gps_x = GPS(0,0);
+    double Y_gps_y = GPS(1,0);
+    double Y_gps_z = GPS(2,0);
 
-    cv::Matx31d V_gps = {
-        1,
-        1,
-        1
-    };
+    double h_gps_x = X(0,0);
+    double h_gps_y = Y(0,0);
+    double h_gps_z = Z(0,0);
 
-    cv::Matx31d R_gps = {
-        r_gps_x,
-        r_gps_y,
-        r_gps_z
-    };
+    ekfCorrectionX(Y_gps_x, h_gps_x, H_gps, V_gps, r_gps_x);
+    ekfCorrectionY(Y_gps_y, h_gps_y, H_gps, V_gps, r_gps_y);
+    ekfCorrectionZ(Y_gps_z, h_gps_z, H_gps, V_gps, r_gps_z);
 }
 
 // --------- Magnetic ----------
@@ -217,6 +234,9 @@ void cbBaro(const hector_uav_msgs::Altimeter::ConstPtr &msg)
 // --------- Sonar ----------
 double z_snr = NaN;
 double r_snr_z;
+// EKF Correction Stuff for GPS
+cv::Matx12d H_snr = {1, 0};
+double V_snr = 1;
 void cbSonar(const sensor_msgs::Range::ConstPtr &msg)
 {
     if (!ready)
@@ -226,6 +246,8 @@ void cbSonar(const sensor_msgs::Range::ConstPtr &msg)
     //// IMPLEMENT SONAR ////
     z_snr = msg->range;
     
+    double h_snr = Z(0,0);
+    ekfCorrectionZ(z_snr, h_snr, H_snr, V_snr, r_snr_z);
 }
 
 // --------- GROUND TRUTH ----------
@@ -233,28 +255,6 @@ nav_msgs::Odometry msg_true;
 void cbTrue(const nav_msgs::Odometry::ConstPtr &msg)
 {
     msg_true = *msg;
-}
-
-// --------- EKF CORRECTION ----------
-void ekfCorrectionX(double Y_k, double h, cv::Matx12d H_k, double V_k, double R_k) {
-    cv::Matx21d K_k = P_x*H_k.t() * 
-        (1 / (H_k*P_x*H_k.t() + cv::Matx<double, 1, 1> {V_k*R_k*V_k})(0));
-    X = X + K_k*(Y_k - h);
-    P_x = P_x - K_k*H_k*P_x;
-}
-
-void ekfCorrectionY(double Y_k, double h, cv::Matx12d H_k, double V_k, double R_k) {
-    cv::Matx21d K_k = P_y*H_k.t() * 
-        (1 / (H_k*P_y*H_k.t() + cv::Matx<double, 1, 1> {V_k*R_k*V_k})(0));
-    Y = Y + K_k*(Y_k - h);
-    P_y = P_y - K_k*H_k*P_y;
-}
-
-void ekfCorrectionZ(double Y_k, double h, cv::Matx12d H_k, double V_k, double R_k) {
-    cv::Matx21d K_k = P_z*H_k.t() * 
-        (1 / (H_k*P_z*H_k.t() + cv::Matx<double, 1, 1> {V_k*R_k*V_k})(0));
-    Z = Z + K_k*(Y_k - h);
-    P_z = P_z - K_k*H_k*P_z;
 }
 
 // --------- MEASUREMENT UPDATE WITH GROUND TRUTH ----------
