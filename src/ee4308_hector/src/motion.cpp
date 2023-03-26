@@ -165,6 +165,24 @@ void cbGps(const sensor_msgs::NavSatFix::ConstPtr &msg)
     cv::Matx31d local_NED = rot_e_n.t() * (ECEF - initial_ECEF);
 
     GPS = rot_m_n * local_NED + initial_pos;
+
+    cv::Matx32d H_gps = {
+        1, 0,
+        1, 0,
+        1, 0
+    };
+
+    cv::Matx31d V_gps = {
+        1,
+        1,
+        1
+    };
+
+    cv::Matx31d R_gps = {
+        r_gps_x,
+        r_gps_y,
+        r_gps_z
+    };
 }
 
 // --------- Magnetic ----------
