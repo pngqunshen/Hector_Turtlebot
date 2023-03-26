@@ -51,7 +51,7 @@ void cbImu(const sensor_msgs::Imu::ConstPtr &msg)
     ua = msg->angular_velocity.z;
     ux = msg->linear_acceleration.x;
     uy = msg->linear_acceleration.y;
-    uz = msg->linear_acceleration.z;
+    uz = msg->linear_acceleration.z - G;
     
     //// IMPLEMENT IMU ////
     cv::Matx21d imu_acc = {ux, uy};
@@ -104,7 +104,7 @@ void cbImu(const sensor_msgs::Imu::ConstPtr &msg)
     };
     cv::Matx21d W_ak = {imu_dt, 1};
     double Qa = qa;
-    A = F_ak*A + W_ak*uz;
+    A = F_ak*A + W_ak*ua;
     P_a = F_ak*P_a*F_ak.t() + W_ak*Qa*W_ak.t();
 }
 
@@ -163,8 +163,8 @@ void cbGps(const sensor_msgs::NavSatFix::ConstPtr &msg)
     double lat_rad = DEG2RAD * lat;
     double lon_rad = DEG2RAD * lon;
 
-    double eccentricity_sq = 1 - pow(RAD_POLAR, 2) / pow(RAD_EQUATOR, 2);
-    double n_phi = RAD_EQUATOR / sqrt(1 - eccentricity_sq * pow(sin(lat_rad), 2));
+    double eccentricity_sq = 1 - (pow(RAD_POLAR, 2) / pow(RAD_EQUATOR, 2));
+    double n_phi = RAD_EQUATOR / sqrt(1 - (eccentricity_sq * pow(sin(lat_rad), 2)));
     
     cv::Matx31d ECEF = {
         (n_phi + alt) * cos(lat_rad) * cos(lon_rad),

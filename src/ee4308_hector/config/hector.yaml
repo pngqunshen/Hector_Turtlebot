@@ -7,13 +7,13 @@ close_enough: 0.2
 average_speed: 2.0
 
 # motion
-verbose_motion: false
+verbose_motion: true
 use_ground_truth: false
 qa: 1
 qx: 1
 qy: 1
 qz: 1
-enable_gps: false
+enable_gps: true
 r_gps_x: 1
 r_gps_y: 1
 r_gps_z: 1
@@ -21,7 +21,7 @@ enable_magnet: false
 r_mgn_a: 1.0e-1
 enable_baro: false
 r_bar_z: 1.0e-1
-enable_sonar: false
+enable_sonar: true
 r_snr_z: 1.0e-1
 motion_iter_rate: 20
 
