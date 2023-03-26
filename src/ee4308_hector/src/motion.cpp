@@ -65,7 +65,7 @@ void cbImu(const sensor_msgs::Imu::ConstPtr &msg)
         -imu_dt*cos(A(0))            , imu_dt*sin(A(0)) 
     };
     cv::Matx22d Qx = {
-        qx, 0,
+        qx, 0 ,
         0 , qy
     };
     X = F_xk*X + W_xk*imu_acc;
@@ -81,7 +81,7 @@ void cbImu(const sensor_msgs::Imu::ConstPtr &msg)
         -imu_dt*sin(A(0))            ,-imu_dt*cos(A(0)) 
     };
     cv::Matx22d Qy = {
-        qx, 0,
+        qx, 0 ,
         0 , qy
     };
     Y = F_yk*Y + W_yk*imu_acc;
@@ -119,9 +119,9 @@ double r_gps_x, r_gps_y, r_gps_z;
 
 cv::Matx31d initial_ECEF = {NaN, NaN, NaN};
 cv::Matx33d rot_m_n = {
-    1, 0, 0,
-    0, -1, 0,
-    0, 0, -1
+    1,  0,  0,
+    0, -1,  0,
+    0,  0, -1
 };
 
 void cbGps(const sensor_msgs::NavSatFix::ConstPtr &msg)
@@ -159,7 +159,7 @@ void cbGps(const sensor_msgs::NavSatFix::ConstPtr &msg)
     cv::Matx33d rot_e_n = {
         -sin(lat_rad) * cos(lon_rad), -sin(lon_rad), -cos(lat_rad) * cos(lon_rad),
         -sin(lat_rad) * sin(lon_rad), cos(lon_rad) , -cos(lat_rad) * sin(lon_rad),
-        cos(lat_rad)                , 0            , -sin(lat_rad)
+         cos(lat_rad)               , 0            , -sin(lat_rad)
     };
 
     cv::Matx31d local_NED = rot_e_n.t() * (ECEF - initial_ECEF);
@@ -215,6 +215,28 @@ nav_msgs::Odometry msg_true;
 void cbTrue(const nav_msgs::Odometry::ConstPtr &msg)
 {
     msg_true = *msg;
+}
+
+// --------- EKF CORRECTION ----------
+void ekfCorrectionX(double Y_k, double h, cv::Matx12d H_k, double V_k, double R_k) {
+    cv::Matx21d K_k = P_x*H_k.t() * 
+        (1 / (H_k*P_x*H_k.t() + cv::Matx<double, 1, 1> {V_k*R_k*V_k})(0));
+    X = X + K_k*(Y_k - h);
+    P_x = P_x - K_k*H_k*P_x;
+}
+
+void ekfCorrectionY(double Y_k, double h, cv::Matx12d H_k, double V_k, double R_k) {
+    cv::Matx21d K_k = P_y*H_k.t() * 
+        (1 / (H_k*P_y*H_k.t() + cv::Matx<double, 1, 1> {V_k*R_k*V_k})(0));
+    Y = Y + K_k*(Y_k - h);
+    P_y = P_y - K_k*H_k*P_y;
+}
+
+void ekfCorrectionZ(double Y_k, double h, cv::Matx12d H_k, double V_k, double R_k) {
+    cv::Matx21d K_k = P_z*H_k.t() * 
+        (1 / (H_k*P_z*H_k.t() + cv::Matx<double, 1, 1> {V_k*R_k*V_k})(0));
+    Z = Z + K_k*(Y_k - h);
+    P_z = P_z - K_k*H_k*P_z;
 }
 
 // --------- MEASUREMENT UPDATE WITH GROUND TRUTH ----------
