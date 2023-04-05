@@ -28,7 +28,7 @@ double prev_imu_t = 0;
 cv::Matx21d X = {0, 0}, Y = {0, 0}; // see intellisense. This is equivalent to cv::Matx<double, 2, 1>
 cv::Matx21d A = {0, 0};
 cv::Matx21d Z = {0, 0};
-cv::Matx22d P_x = cv::Matx22d::ones(), P_y = cv::Matx22d::zeros();
+cv::Matx22d P_x = cv::Matx22d::ones(), P_y = cv::Matx22d::ones();
 cv::Matx22d P_a = cv::Matx22d::ones();
 cv::Matx22d P_z = cv::Matx22d::ones();
 double ua = NaN, ux = NaN, uy = NaN, uz = NaN;
@@ -53,6 +53,8 @@ void cbImu(const sensor_msgs::Imu::ConstPtr &msg)
     uy = msg->linear_acceleration.y;
     uz = msg->linear_acceleration.z - G;
     
+    ROS_INFO_STREAM("x: " << X(0) << "y" << X(0) );
+
     //// IMPLEMENT IMU ////
     cv::Matx21d imu_acc = {ux, uy};
     // X
@@ -230,9 +232,9 @@ void cbMagnet(const geometry_msgs::Vector3Stamped::ConstPtr &msg)
     //// IMPLEMENT MAG ////
     double mx = msg->vector.x;
     double my = msg->vector.y;
-    double roty = - mx * sin(A(0)) + my * cos(A(0));
-    double rotx = mx * cos(A(0)) + my * sin(A(0));
-    a_mgn = atan2(roty, rotx);
+    // double roty = - mx * sin(A(0)) + my * cos(A(0));
+    // double rotx = mx * cos(A(0)) + my * sin(A(0));
+    a_mgn = -atan2(my, mx);
     double h_mgn_a = A(0,0);
     ekfCorrectionYaw(a_mgn, h_mgn_a, H_mgn, V_mgn, r_mgn_a, 0);
 
