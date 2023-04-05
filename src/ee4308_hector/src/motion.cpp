@@ -53,8 +53,6 @@ void cbImu(const sensor_msgs::Imu::ConstPtr &msg)
     uy = msg->linear_acceleration.y;
     uz = msg->linear_acceleration.z - G;
     
-    ROS_INFO_STREAM("x: " << X(0) << "y" << X(0) );
-
     //// IMPLEMENT IMU ////
     cv::Matx21d imu_acc = {ux, uy};
     // X
