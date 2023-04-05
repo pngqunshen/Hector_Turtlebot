@@ -155,9 +155,9 @@ int main(int argc, char **argv)
         if (rotate){
             cmd_lin_vel_a = yaw_rate;
         }
-        cv::Matx33d rotation = {cos(a), sin(a), 0,
-                                -sin(a),  cos(a), 0,
-                                0,        0,     1};
+        cv::Matx33d rotation = { cos(a), sin(a), 0,
+                                -sin(a), cos(a), 0,
+                                     0,       0, 1 };
         
 
         double e_x = target_x - x;
@@ -175,14 +175,14 @@ int main(int argc, char **argv)
 
         lin_vel = (Kp.mul(lin_e)) + (Ki.mul(lin_integral)) + (Kd.mul(lin_derivative));
         lin_vel = rotation * lin_vel;
+        cmd_lin_vel_x = lin_vel(0);
+        cmd_lin_vel_y = lin_vel(1);
+        cmd_lin_vel_z = lin_vel(2);
 
         // publish speeds
         msg_cmd.linear.x = cmd_lin_vel_x;
         msg_cmd.linear.y = cmd_lin_vel_y;
         msg_cmd.linear.z = cmd_lin_vel_z;
-        msg_cmd.linear.x = lin_vel(0);
-        msg_cmd.linear.y = lin_vel(1);
-        msg_cmd.linear.z = lin_vel(2);
         msg_cmd.angular.z = cmd_lin_vel_a;
         pub_cmd.publish(msg_cmd);
 
@@ -237,7 +237,9 @@ int main(int argc, char **argv)
         // verbose
         if (verbose)
         {
-            // ROS_INFO(" HMOVE : Target(%6.3f, %6.3f, %6.3f) FV(%6.3f) VX(%6.3f) VY(%6.3f) VZ(%7.3f)", target_x, target_y, target_z, cmd_lin_vel, cmd_lin_vel_x, cmd_lin_vel_y, cmd_lin_vel_z);
+            ROS_INFO(" HMOVE : Target(%6.3f, %6.3f, %6.3f) FV(%6.3f) VX(%6.3f) VY(%6.3f) VZ(%7.3f)", 
+                     target_x, target_y, target_z, 
+                     cmd_lin_vel_a, cmd_lin_vel_x, cmd_lin_vel_y, cmd_lin_vel_z);
         }
         // wait for rate
         rate.sleep();
