@@ -134,8 +134,13 @@ void ekfCorrectionYaw(double Y_k, double h, cv::Matx12d H_k, double V_k, double 
     cv::Matx21d K_k = P_a*H_k.t() * 
         (1 / ((H_k*P_a*H_k.t())(0) + V_k*R_k*V_k));
     A = A + K_k*(Y_k - h);
-    P_a = P_z - K_k*H_k*P_a;
+    P_a = P_a - K_k*H_k*P_a;
 }
+
+// for variance calculation
+// std::vector<float> sonar_data;
+// std::vector<float> baro_data;
+// std::vector<float> mag_data;
 
 // --------- GPS ----------
 // https://docs.ros.org/en/api/sensor_msgs/html/msg/NavSatFix.html
@@ -226,6 +231,30 @@ void cbMagnet(const geometry_msgs::Vector3Stamped::ConstPtr &msg)
     a_mgn = atan2(my, mx);
     double h_mgn_a = A(0,0);
     ekfCorrectionYaw(a_mgn, h_mgn_a, H_mgn, V_mgn, r_mgn_a);
+
+    // for variance calculation
+    // mag_data.push_back(a_mgn);
+    // ROS_INFO_STREAM("number of mag data: " << mag_data.size());
+    // if (mag_data.size() == 500)
+    // {
+    //     double sum = 0;
+    //     for (int i = 0; i < mag_data.size(); i++)
+    //     {
+    //         sum += mag_data[i];
+    //     }
+    //     double mean = sum / mag_data.size();
+    //     double sum_sq = 0;
+    //     for (int i = 0; i < mag_data.size(); i++)
+    //     {
+    //         sum_sq += pow(mag_data[i] - mean, 2);
+    //     }
+    //     double variance = sum_sq / mag_data.size();
+    //     for (int i = 0; i < mag_data.size(); i++)
+    //     {
+    //         std::cout << mag_data[i] << ", ";     
+    //     }
+    //     ROS_INFO_STREAM("mag variance: " << variance);
+    // }
 }
 
 // --------- Baro ----------
@@ -241,6 +270,30 @@ void cbBaro(const hector_uav_msgs::Altimeter::ConstPtr &msg)
      z_bar = msg->altitude;
      double h_bar_z = Z(0,0);
      ekfCorrectionZ(z_bar, h_bar_z, H_bar, V_bar, r_bar_z);
+    
+    // for variance calculation
+    // baro_data.push_back(z_bar);
+    // ROS_INFO_STREAM("number of baro data: " << baro_data.size());
+    // if (baro_data.size() == 500)
+    // {
+    //     double sum = 0;
+    //     for (int i = 0; i < baro_data.size(); i++)
+    //     {
+    //         sum += baro_data[i];
+    //     }
+    //     double mean = sum / baro_data.size();
+    //     double sum_sq = 0;
+    //     for (int i = 0; i < baro_data.size(); i++)
+    //     {
+    //         sum_sq += pow(baro_data[i] - mean, 2);
+    //     }
+    //     double variance = sum_sq / baro_data.size();
+    //     for (int i = 0; i < baro_data.size(); i++)
+    //     {
+    //         std::cout << baro_data[i] << " ";
+    //     }
+    //     ROS_INFO_STREAM("baro variance: " << variance);
+    // }
 }
 
 // --------- Sonar ----------
@@ -259,6 +312,30 @@ void cbSonar(const sensor_msgs::Range::ConstPtr &msg)
     
     double h_snr = Z(0,0);
     ekfCorrectionZ(z_snr, h_snr, H_snr, V_snr, r_snr_z);  
+
+    // for variance calculation
+    // sonar_data.push_back(z_snr);
+    // ROS_INFO_STREAM("number of sonar data: " << sonar_data.size());
+    // if (sonar_data.size() == 500)
+    // {
+    //     double sum = 0;
+    //     for (int i = 0; i < sonar_data.size(); i++)
+    //     {
+    //         sum += sonar_data[i];
+    //     }
+    //     double mean = sum / sonar_data.size();
+    //     double sum_sq = 0;
+    //     for (int i = 0; i < sonar_data.size(); i++)
+    //     {
+    //         sum_sq += pow(sonar_data[i] - mean, 2);
+    //     }
+    //     double variance = sum_sq / sonar_data.size();
+    //     for (int i = 0; i < sonar_data.size(); i++)
+    //     {
+    //         std::cout << sonar_data[i] << ", ";
+    //     }
+    //     ROS_INFO_STREAM("sonar variance: " << variance);
+    // }
 }
 
 // --------- GROUND TRUTH ----------

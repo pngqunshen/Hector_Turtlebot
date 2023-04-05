@@ -177,9 +177,6 @@ int main(int argc, char **argv)
         lin_vel = rotation * lin_vel;
 
         // publish speeds
-        msg_cmd.linear.x = cmd_lin_vel_x;
-        msg_cmd.linear.y = cmd_lin_vel_y;
-        msg_cmd.linear.z = cmd_lin_vel_z;
         msg_cmd.linear.x = lin_vel(0);
         msg_cmd.linear.y = lin_vel(1);
         msg_cmd.linear.z = lin_vel(2);
