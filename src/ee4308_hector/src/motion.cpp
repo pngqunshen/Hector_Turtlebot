@@ -230,7 +230,9 @@ void cbMagnet(const geometry_msgs::Vector3Stamped::ConstPtr &msg)
     //// IMPLEMENT MAG ////
     double mx = msg->vector.x;
     double my = msg->vector.y;
-    a_mgn = atan2(my, mx);
+    double roty = mx * sin(A(0)) + my * cos(A(0));
+    double rotx = mx * cos(A(0)) - my * sin(A(0));
+    a_mgn = atan2(roty, rotx);
     double h_mgn_a = A(0,0);
     ekfCorrectionYaw(a_mgn, h_mgn_a, H_mgn, V_mgn, r_mgn_a, 0);
 
