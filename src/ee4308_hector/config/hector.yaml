@@ -18,11 +18,11 @@ r_gps_x: 25.
 r_gps_y: 25.
 r_gps_z: 25.
 enable_magnet: true
-r_mgn_a: 6.22716e-04
+r_mgn_a: 0.000623964
 enable_baro: true
-r_bar_z: 1.0e-1
+r_bar_z: 0.123828
 enable_sonar: true
-r_snr_z: 2.33969e-05
+r_snr_z: 0.0000234438
 motion_iter_rate: 20
 
 # move
