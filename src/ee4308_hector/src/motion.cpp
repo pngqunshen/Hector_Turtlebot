@@ -250,7 +250,7 @@ void cbMagnet(const geometry_msgs::Vector3Stamped::ConstPtr &msg)
     //     {
     //         sum_sq += pow(mag_data[i] - mean, 2);
     //     }
-    //     double variance = sum_sq / mag_data.size();
+    //     double variance = sum_sq / (mag_data.size() - 1);
     //     for (int i = 0; i < mag_data.size(); i++)
     //     {
     //         std::cout << mag_data[i] << ", ";     
@@ -295,10 +295,10 @@ void cbBaro(const hector_uav_msgs::Altimeter::ConstPtr &msg)
     //     {
     //         sum_sq += pow(baro_data[i] - mean, 2);
     //     }
-    //     double variance = sum_sq / baro_data.size();
+    //     double variance = sum_sq / (baro_data.size() - 1);
     //     for (int i = 0; i < baro_data.size(); i++)
     //     {
-    //         std::cout << baro_data[i] << " ";
+    //         std::cout << baro_data[i] << ", ";
     //     }
     //     ROS_INFO_STREAM("baro variance: " << variance);
     // }
@@ -350,7 +350,7 @@ void cbSonar(const sensor_msgs::Range::ConstPtr &msg)
     //     {
     //         sum_sq += pow(sonar_data[i] - mean, 2);
     //     }
-    //     double variance = sum_sq / sonar_data.size();
+    //     double variance = sum_sq / (sonar_data.size() - 1);
     //     for (int i = 0; i < sonar_data.size(); i++)
     //     {
     //         std::cout << sonar_data[i] << ", ";
@@ -460,9 +460,11 @@ int main(int argc, char **argv)
         ROS_INFO("HMOTION: Calibrated Gyro");
     else
         ROS_WARN("HMOTION: Gyro cannot be calibrated!");
+    ROS_INFO("HMOTION: Calibrating Baro...");
     while (enable_baro && baroNotCalibrated()) { // loop endlessly until barometer is calibrated
         ros::spinOnce(); // update topics
     }
+    ROS_INFO("HMOTION: Calibrated Baro");
 
     // --------- Main loop ----------
     ros::Rate rate(motion_iter_rate);
