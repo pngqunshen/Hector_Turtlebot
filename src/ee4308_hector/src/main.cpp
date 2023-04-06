@@ -328,7 +328,7 @@ int main(int argc, char **argv)
                 traj_init = false;
             }
 
-            if (dist_euc(traj.get_next_goal(traj.path.poses.size() - 1), Position3d(turtle_x, turtle_y, height)) > look_ahead){
+            if (dist_euc(traj.get_next_goal(traj.path.poses.size() - 1), Position3d(turtle_x, turtle_y, height)) > close_enough){
                 traj_init = false;
             }
 
@@ -425,7 +425,7 @@ int main(int argc, char **argv)
             pub_rotate.publish(msg_rotate);
 
             if (!traj_init){
-                traj.init_traj(Position3d(x,y,z), Position3d(initial_x, initial_y, initial_z), Position3d(vx, vy, 0), average_speed, 1/main_iter_rate);
+                traj.init_traj(Position3d(x,y,z), Position3d(initial_x, initial_y, height), Position3d(vx, vy, 0), average_speed, 1/main_iter_rate);
                 pub_traj.publish(traj.path);
                 
                 if (traj.path.poses.size() > look_ahead_time - 1){
@@ -435,6 +435,19 @@ int main(int argc, char **argv)
                 }
                 traj_init = true;
             }
+
+            if (dist_euc(Position3d(x,y,z), Position3d(initial_x, initial_y, height)) < close_enough){
+                traj.init_traj(Position3d(x,y,z), Position3d(initial_x, initial_y, initial_z), Position3d(vx, vy, 0), average_speed, 1/main_iter_rate);
+                pub_traj.publish(traj.path);
+                
+                if (traj.path.poses.size() > look_ahead_time - 1){
+                    t = look_ahead_time;
+                } else {
+                    t = traj.path.poses.size() - 1;
+                }
+            }
+
+            target = traj.get_next_goal(t);
 
             if (dist_euc(Position3d(x,y,z), target) < look_ahead){
                 if (t + 1 < traj.path.poses.size()){
