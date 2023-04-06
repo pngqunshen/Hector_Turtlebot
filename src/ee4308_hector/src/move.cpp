@@ -180,9 +180,9 @@ int main(int argc, char **argv)
         cmd_lin_vel_z = lin_vel(2);
 
         // publish speeds
-        msg_cmd.linear.x = cmd_lin_vel_x;
-        msg_cmd.linear.y = cmd_lin_vel_y;
-        msg_cmd.linear.z = cmd_lin_vel_z;
+        msg_cmd.linear.x = std::min(cmd_lin_vel_x, max_lin_vel);
+        msg_cmd.linear.y = std::min(cmd_lin_vel_y, max_lin_vel);
+        msg_cmd.linear.z = std::min(cmd_lin_vel_z, max_z_vel);
         msg_cmd.angular.z = cmd_lin_vel_a;
         pub_cmd.publish(msg_cmd);
 
