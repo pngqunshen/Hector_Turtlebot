@@ -249,7 +249,7 @@ int main(int argc, char **argv)
             pub_rotate.publish(msg_rotate);
 
             if (!traj_init){
-                traj.init_traj(Position3d(x,y,z), Position3d(initial_x, initial_y, height), Position3d(vx, vy, vz), average_speed, 1/main_iter_rate);
+                traj.init_traj(Position3d(initial_x,initial_y,initial_z), Position3d(initial_x, initial_y, height), Position3d(vx, vy, vz), average_speed, 1/main_iter_rate);
                 pub_traj.publish(traj.path);
                 
                 if (traj.path.poses.size() > look_ahead_time - 1){
