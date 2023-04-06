@@ -345,10 +345,7 @@ int main(int argc, char **argv)
         }
         else if (state == START)
         {   // flying to hector's starting position
-            if (!nh.param("/turtle/run", false))
-            { // use this if else case to track when the turtle reaches the final goal
-                state = LAND;
-            }
+            
             msg_rotate.data = true;
             pub_rotate.publish(msg_rotate);
 
@@ -374,7 +371,14 @@ int main(int argc, char **argv)
             target = traj.get_next_goal(t);
 
             if (dist_euc(Position3d(x,y,z), Position3d(initial_x, initial_y, height)) < close_enough){
-                state = TURTLE;
+                if (!nh.param("/turtle/run", false))
+                { // use this if else case to track when the turtle reaches the final goal
+                    state = LAND;
+                }
+                else
+                {
+                    state = TURTLE;
+                }
                 traj_init = false;
             }
             msg_target.point.x = target.x;
@@ -425,7 +429,7 @@ int main(int argc, char **argv)
             pub_rotate.publish(msg_rotate);
 
             if (!traj_init){
-                traj.init_traj(Position3d(x,y,z), Position3d(initial_x, initial_y, height), Position3d(vx, vy, 0), average_speed, 1/main_iter_rate);
+                traj.init_traj(Position3d(x,y,z), Position3d(initial_x, initial_y, initial_z), Position3d(vx, vy, 0), average_speed, 1/main_iter_rate);
                 pub_traj.publish(traj.path);
                 
                 if (traj.path.poses.size() > look_ahead_time - 1){
@@ -436,17 +440,6 @@ int main(int argc, char **argv)
                 traj_init = true;
             }
 
-            if (dist_euc(Position3d(x,y,z), Position3d(initial_x, initial_y, height)) < close_enough){
-                traj.init_traj(Position3d(x,y,z), Position3d(initial_x, initial_y, initial_z), Position3d(vx, vy, 0), average_speed, 1/main_iter_rate);
-                pub_traj.publish(traj.path);
-                
-                if (traj.path.poses.size() > look_ahead_time - 1){
-                    t = look_ahead_time;
-                } else {
-                    t = traj.path.poses.size() - 1;
-                }
-            }
-
             target = traj.get_next_goal(t);
 
             if (dist_euc(Position3d(x,y,z), target) < look_ahead){
@@ -455,6 +448,11 @@ int main(int argc, char **argv)
                 } else {
                     t = traj.path.poses.size() - 1;
                 }
+            }
+
+            if (dist_euc(Position3d(x,y,z), Position3d(initial_x, initial_y, initial_z)) < close_enough){
+                ROS_INFO(" Reached Last Target");
+                break;
             }
             msg_target.point.x = target.x;
             msg_target.point.y = target.y;
