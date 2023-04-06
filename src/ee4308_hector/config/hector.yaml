@@ -7,7 +7,7 @@ close_enough: 0.2
 average_speed: 2.0
 
 # motion
-verbose_motion: false
+verbose_motion: true
 use_ground_truth: false
 qa: 50
 qx: 50

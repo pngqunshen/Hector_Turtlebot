@@ -27,10 +27,10 @@ const double G = 9.8;
 double prev_imu_t = 0;
 cv::Matx21d X = {0, 0}, Y = {0, 0}; // see intellisense. This is equivalent to cv::Matx<double, 2, 1>
 cv::Matx21d A = {0, 0};
-cv::Matx21d Z = {0, 0};
+cv::Matx31d Z = {0, 0, 0};
 cv::Matx22d P_x = cv::Matx22d::ones(), P_y = cv::Matx22d::ones();
 cv::Matx22d P_a = cv::Matx22d::ones();
-cv::Matx22d P_z = cv::Matx22d::ones();
+cv::Matx33d P_z = cv::Matx33d::ones();
 double ua = NaN, ux = NaN, uy = NaN, uz = NaN;
 double qa, qx, qy, qz;
 // see https://docs.opencv.org/3.4/de/de1/classcv_1_1Matx.html
@@ -88,13 +88,14 @@ void cbImu(const sensor_msgs::Imu::ConstPtr &msg)
     P_y = F_yk*P_y*F_yk.t() + W_yk*Qy*W_yk.t();
 
     // Z
-    cv::Matx22d F_zk = {
-        1, imu_dt,
-        0, 1
+    cv::Matx33d F_zk = {
+        1, imu_dt, 0,
+        0, 1     , 0,
+        0, 0     , 1    
     };
-    cv::Matx21d W_zk = {0.5*pow(imu_dt, 2), imu_dt};
+    cv::Matx31d W_zk = {0.5*pow(imu_dt, 2), imu_dt, 0};
     double Qz = qz;
-    Z = F_zk*Z + W_zk*uz;
+    Z = F_zk * Z + W_zk * uz;
     P_z = F_zk*P_z*F_zk.t() + W_zk*Qz*W_zk.t();
 
     // A
@@ -125,9 +126,9 @@ void ekfCorrectionY(double Y_k, double h, cv::Matx12d H_k, double V_k,
     P_y = P_y - K_k*H_k*P_y;
 }
 
-void ekfCorrectionZ(double Y_k, double h, cv::Matx12d H_k, double V_k, 
+void ekfCorrectionZ(double Y_k, double h, cv::Matx13d H_k, double V_k, 
                     double R_k, double bias) {
-    cv::Matx21d K_k = P_z*H_k.t() * 
+    cv::Matx31d K_k = P_z*H_k.t() * 
         (1 / ((H_k*P_z*H_k.t())(0) + V_k*R_k*V_k));
     Z = Z + K_k*(Y_k - h - bias);
     P_z = P_z - K_k*H_k*P_z;
@@ -163,6 +164,7 @@ cv::Matx33d rot_m_n = {
 };
 // EKF Correction Stuff for GPS
 cv::Matx12d H_gps = {1, 0};
+cv::Matx13d H_gps_z = {1, 0, 0};
 double V_gps = 1;
 
 void cbGps(const sensor_msgs::NavSatFix::ConstPtr &msg)
@@ -170,7 +172,7 @@ void cbGps(const sensor_msgs::NavSatFix::ConstPtr &msg)
     if (!ready)
         return;
 
-    //// IMPLEMENT GPS /////
+    // //// IMPLEMENT GPS /////
     double lat = msg->latitude; //IN DEGREES
     double lon = msg->longitude; //IN DEGREES
     double alt = msg->altitude;
@@ -214,7 +216,7 @@ void cbGps(const sensor_msgs::NavSatFix::ConstPtr &msg)
 
     ekfCorrectionX(Y_gps_x, h_gps_x, H_gps, V_gps, r_gps_x, 0);
     ekfCorrectionY(Y_gps_y, h_gps_y, H_gps, V_gps, r_gps_y, 0);
-    ekfCorrectionZ(Y_gps_z, h_gps_z, H_gps, V_gps, r_gps_z, 0);
+    ekfCorrectionZ(Y_gps_z, h_gps_z, H_gps_z, V_gps, r_gps_z, 0);
 }
 
 // --------- Magnetic ----------
@@ -269,7 +271,7 @@ double V_bar = 1;
 // Baro bias terms
 std::list <double> baro_bias_terms; // store bias terms for calibration
 double baro_bias; // calculated baro bias term
-cv::Matx12d H_bar = {1, 0};
+cv::Matx13d H_bar = {1, 0, 1};
 void cbBaro(const hector_uav_msgs::Altimeter::ConstPtr &msg)
 {
     if (!ready) {
@@ -279,7 +281,7 @@ void cbBaro(const hector_uav_msgs::Altimeter::ConstPtr &msg)
     //// IMPLEMENT BARO ////
      z_bar = msg->altitude;
      double h_bar_z = Z(0,0);
-     ekfCorrectionZ(z_bar, h_bar_z, H_bar, V_bar, r_bar_z, baro_bias);
+     ekfCorrectionZ(z_bar, h_bar_z, H_bar, V_bar, r_bar_z, Z(2));
     
     // for variance calculation
     // baro_data.push_back(z_bar);
@@ -323,7 +325,7 @@ bool baroNotCalibrated() {
 double z_snr = NaN;
 double r_snr_z;
 // EKF Correction Stuff for GPS
-cv::Matx12d H_snr = {1, 0};
+cv::Matx13d H_snr = {1, 0, 0};
 double V_snr = 1;
 void cbSonar(const sensor_msgs::Range::ConstPtr &msg)
 {
@@ -463,9 +465,9 @@ int main(int argc, char **argv)
     else
         ROS_WARN("HMOTION: Gyro cannot be calibrated!");
     ROS_INFO("HMOTION: Calibrating Baro...");
-    while (enable_baro && baroNotCalibrated()) { // loop endlessly until barometer is calibrated
-        ros::spinOnce(); // update topics
-    }
+    // while (enable_baro && baroNotCalibrated()) { // loop endlessly until barometer is calibrated
+    //     ros::spinOnce(); // update topics
+    // }
     ROS_INFO("HMOTION: Calibrated Baro");
 
     // --------- Main loop ----------
@@ -489,7 +491,7 @@ int main(int argc, char **argv)
             ROS_INFO("[HM]   GPS(%7.3lf,%7.3lf,%7.3lf, ---- )", GPS(0), GPS(1), GPS(2));
             ROS_INFO("[HM] MAGNT( ----- , ----- , ----- ,%6.3lf)", a_mgn);
             ROS_INFO("[HM]  BARO( ----- , ----- ,%7.3lf, ---- )", z_bar);
-            ROS_INFO("[HM] BAROB( ----- , ----- ,%7.3lf, ---- )", baro_bias);
+            ROS_INFO("[HM] BAROB( ----- , ----- ,%7.3lf, ---- )", Z(2));
             ROS_INFO("[HM] SONAR( ----- , ----- ,%7.3lf, ---- )", z_snr);
         }
 
