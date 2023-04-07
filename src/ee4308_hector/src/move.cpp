@@ -14,6 +14,7 @@
 #include <signal.h>
 #include "common.hpp"
 #include <opencv2/core/matx.hpp>
+#include <nav_msgs/Odometry.h> 
 
 #define NaN std::numeric_limits<double>::quiet_NaN()
 
@@ -48,6 +49,13 @@ void cbPose(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr &msg)
     double cosy_cosp = 1 - 2 * (q.y * q.y + q.z * q.z);
     a = atan2(siny_cosp, cosy_cosp);
 }
+
+// //for pid tuning
+// nav_msgs::Odometry msg_true;
+// void cbTrue(const nav_msgs::Odometry::ConstPtr &msg)
+// {
+//     msg_true = *msg;
+// }
 
 bool rotate = false;
 void cbRotate(const std_msgs::Bool::ConstPtr &msg)
@@ -115,7 +123,7 @@ int main(int argc, char **argv)
     ros::Subscriber sub_target = nh.subscribe("target", 1, &cbTarget);
     ros::Subscriber sub_pose = nh.subscribe("pose", 1, &cbPose);
     ros::Subscriber sub_rotate = nh.subscribe("rotate", 1, &cbRotate);
-
+    // ros::Subscriber sub_true = nh.subscribe<nav_msgs::Odometry>("ground_truth/state", 1, &cbTrue); // for PID tuning
     // --------- Publishers ----------
     ros::Publisher pub_cmd = nh.advertise<geometry_msgs::Twist>("cmd_vel", 1, true);
     geometry_msgs::Twist msg_cmd; // all properties are initialised to zero.
@@ -136,11 +144,13 @@ int main(int argc, char **argv)
     cv::Vec3d e_prev = {0,0,0};
     cv::Vec3d lin_vel = {0,0,0};
 
-    //variables used for pid tuning
-    double rise_time_start = -1;
-    double rise_time_end = -1;
-    double max_overshoot = 0;
+    // //variables used for pid tuning
+    // double rise_time_start = -1;
+    // double rise_time_end = -1;
+    // double max_overshoot = 0;
 
+    
+    
     // main loop
     while (ros::ok() && nh.param("run", true))
     {
@@ -166,7 +176,7 @@ int main(int argc, char **argv)
 
         cv::Vec3d lin_e = {e_x, e_y, e_z};
         cv::Vec3d lin_derivative = (lin_e - e_prev) / dt;
-        lin_integral += lin_e;
+        lin_integral += lin_e * dt;
         e_prev = lin_e;
 
         cv::Vec3d Kp = {Kp_lin, Kp_lin, Kp_z};
@@ -187,49 +197,57 @@ int main(int argc, char **argv)
         pub_cmd.publish(msg_cmd);
 
         //pid tuning code for z
-        // if (z > 0.178 + (0.1 *  0.08) ){
+        //PID target set as 2m, the actual height for the hector
+        //use ground truth values for PID tuning
+        // auto & tp = msg_true.pose.pose.position;
+
+        // double PID_TESTING_SETPOINT = 2;
+        // if (tp.z > 0.178 + (PID_TESTING_SETPOINT * 0.1) ) { //include the starting offset of 0.178
         //     if (rise_time_start == -1){
         //         rise_time_start = ros::Time::now().toSec();
-        //         ROS_INFO("start");
+        //         ROS_INFO("Start recording Z axis rise time");
         //     }
         // }
-        // if (z > 0.178 + (0.9 * 0.08)){
+        // if (tp.z >= 0.178 + (PID_TESTING_SETPOINT * 0.9)) { 
         //     if (rise_time_end == -1){
         //         rise_time_end = ros::Time::now().toSec();
-        //         ROS_INFO("end");
+        //         ROS_INFO("End recording Z axis rise time");
 
         //     }
-        //     if (z - (0.178 + 0.08) > max_overshoot){
-        //         max_overshoot = z - (0.178 + 0.08);
+        //     if (tp.z - (0.178 + PID_TESTING_SETPOINT) > max_overshoot){
+        //         max_overshoot = tp.z - (0.178 + PID_TESTING_SETPOINT);
         //     }
         // }
 
         // if (rise_time_end > 0){
-        //     ROS_INFO_STREAM("rise time " << (rise_time_end - rise_time_start));
-        //     ROS_INFO_STREAM("max_overshoot " << max_overshoot);
+        //     ROS_INFO_STREAM("Rise Time Z: " << (rise_time_end - rise_time_start));
+        //     ROS_INFO_STREAM("Max Overshoot Z:  " << 100 * max_overshoot / PID_TESTING_SETPOINT  << "%");
+        //     ROS_INFO_STREAM("Ground Truth Z: " << tp.z);
         // }
         //end of pid tuning code
+        //distance of 2m chosen arbritratily
 
-        //pid tuning code for lin
-        // if (x > 2 + (0.1 *  0.08) ){
+        // // pid tuning code for lin
+        // if (tp.x > 2 + (0.1 *  PID_TESTING_SETPOINT) ){
         //     if (rise_time_start == -1){
         //         rise_time_start = ros::Time::now().toSec();
         //     }
         // }
-        // if (x > 2 + (0.9 * 0.08)){
+        // if (tp.x > 2 + (0.9 * PID_TESTING_SETPOINT)){
         //     if (rise_time_end == -1){
         //         rise_time_end = ros::Time::now().toSec();
         //     }
-        //     if (x - (2 + 0.08) > max_overshoot){
-        //         max_overshoot = x - (2 + 0.08);
+        //     if (tp.x - (2 + PID_TESTING_SETPOINT) > max_overshoot){
+        //         max_overshoot = tp.x - (2 + PID_TESTING_SETPOINT);
         //     }
         // }
 
         // if (rise_time_end > 0){
-        //     ROS_INFO_STREAM("rise time " << (rise_time_end - rise_time_start));
-        //     ROS_INFO_STREAM("max_overshoot " << max_overshoot);
+        //     ROS_INFO_STREAM("Rise Time X:" << (rise_time_end - rise_time_start));
+        //     ROS_INFO_STREAM("Max Overshoot X:  " << 100 * max_overshoot / PID_TESTING_SETPOINT << "%");
+        //     ROS_INFO_STREAM("Ground Truth X: " << tp.x);
         // }
-        //end of pid tuning code
+        // // end of pid tuning code
 
 
         //// IMPLEMENT /////
