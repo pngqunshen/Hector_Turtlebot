@@ -50,12 +50,12 @@ void cbPose(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr &msg)
     a = atan2(siny_cosp, cosy_cosp);
 }
 
-// //for pid tuning
-// nav_msgs::Odometry msg_true;
-// void cbTrue(const nav_msgs::Odometry::ConstPtr &msg)
-// {
-//     msg_true = *msg;
-// }
+//for pid tuning
+nav_msgs::Odometry msg_true;
+void cbTrue(const nav_msgs::Odometry::ConstPtr &msg)
+{
+    msg_true = *msg;
+}
 
 bool rotate = false;
 void cbRotate(const std_msgs::Bool::ConstPtr &msg)
@@ -123,7 +123,7 @@ int main(int argc, char **argv)
     ros::Subscriber sub_target = nh.subscribe("target", 1, &cbTarget);
     ros::Subscriber sub_pose = nh.subscribe("pose", 1, &cbPose);
     ros::Subscriber sub_rotate = nh.subscribe("rotate", 1, &cbRotate);
-    // ros::Subscriber sub_true = nh.subscribe<nav_msgs::Odometry>("ground_truth/state", 1, &cbTrue); // for PID tuning
+    ros::Subscriber sub_true = nh.subscribe<nav_msgs::Odometry>("ground_truth/state", 1, &cbTrue); // for PID tuning
     // --------- Publishers ----------
     ros::Publisher pub_cmd = nh.advertise<geometry_msgs::Twist>("cmd_vel", 1, true);
     geometry_msgs::Twist msg_cmd; // all properties are initialised to zero.
@@ -145,10 +145,15 @@ int main(int argc, char **argv)
     cv::Vec3d lin_vel = {0,0,0};
 
     // //variables used for pid tuning
-    // double rise_time_start = -1;
-    // double rise_time_end = -1;
-    // double max_overshoot = 0;
-
+    double rise_time_start = -1;
+    double rise_time_end = -1;
+    double max_overshoot = 0;
+    double rmseX = 0;
+    double rmseY = 0;
+    double rmseZ = 0;
+    double rmseA = 0;
+    double rmseLin = 0;
+    int counter = 0;
     
     
     // main loop
@@ -199,7 +204,10 @@ int main(int argc, char **argv)
         //pid tuning code for z
         //PID target set as 2m, the actual height for the hector
         //use ground truth values for PID tuning
-        // auto & tp = msg_true.pose.pose.position;
+        auto & tp = msg_true.pose.pose.position;
+        auto &q_gt = msg_true.pose.pose.orientation;
+        double siny_cosp_gt = 2 * (q_gt.w * q_gt.z + q_gt. x * q_gt.y);
+        double cosy_cosp_gt = 1 - 2 * (q_gt.y * q_gt.y + q_gt.z * q_gt.z);
 
         // double PID_TESTING_SETPOINT = 2;
         // if (tp.z > 0.178 + (PID_TESTING_SETPOINT * 0.1) ) { //include the starting offset of 0.178
@@ -248,6 +256,19 @@ int main(int argc, char **argv)
         //     ROS_INFO_STREAM("Ground Truth X: " << tp.x);
         // }
         // // end of pid tuning code
+
+        counter++;
+        rmseX += pow(tp.x - x, 2);
+        rmseY += pow(tp.y - y, 2);
+        rmseLin += pow(tp.x - x, 2) + pow(tp.y - y, 2);
+        rmseZ += pow(tp.z - z, 2);
+        rmseA += pow(atan2(siny_cosp_gt, cosy_cosp_gt) - a, 2);
+
+        ROS_INFO_STREAM("RMSE X: " << sqrt(rmseX / counter));
+        ROS_INFO_STREAM("RMSE Y: " << sqrt(rmseY / counter));
+        ROS_INFO_STREAM("RMSE LINEAR: " << sqrt(rmseLin / counter));
+        ROS_INFO_STREAM("RMSE Z: " << sqrt(rmseZ / counter));
+        ROS_INFO_STREAM("RMSE A: " << sqrt(rmseA / counter));
 
 
         //// IMPLEMENT /////
