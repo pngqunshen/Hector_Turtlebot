@@ -172,8 +172,11 @@ int main(int argc, char **argv)
     if (!nh.param("close_enough", close_enough, 0.1))
         ROS_WARN(" HMAIN : Param close_enough not found, set to 0.1");
     double average_speed;
+    double average_speed_z;
     if (!nh.param("average_speed", average_speed, 2.0))
         ROS_WARN(" HMAIN : Param average_speed not found, set to 2.0");
+    if (!nh.param("average_speed_z", average_speed_z, 0.5))
+        ROS_WARN(" HMAIN : Param average_speed not found, set to 0.5");
     if (!nh.param("verbose_main", verbose, true))
         ROS_WARN(" HMAIN : Param verbose_main not found, set to false");
     // get the final goal position of turtle
@@ -231,6 +234,8 @@ int main(int argc, char **argv)
     Position3d target = {0,0,0};
     Trajectory traj;
     int look_ahead_time = (look_ahead / average_speed) * main_iter_rate;
+    int look_ahead_time_z = (look_ahead / average_speed_z) * main_iter_rate;
+
     bool traj_init = false;
     double t;
     while (ros::ok() && nh.param("run", true))
@@ -249,11 +254,11 @@ int main(int argc, char **argv)
             pub_rotate.publish(msg_rotate);
 
             if (!traj_init){
-                traj.init_traj(Position3d(initial_x,initial_y,initial_z), Position3d(initial_x, initial_y, height), Position3d(vx, vy, vz), average_speed, 1/main_iter_rate);
+                traj.init_traj(Position3d(x,y,z), Position3d(initial_x, initial_y, height), Position3d(vx, vy, vz), average_speed_z, 1/main_iter_rate);
                 pub_traj.publish(traj.path);
                 
-                if (traj.path.poses.size() > look_ahead_time - 1){
-                    t = look_ahead_time;
+                if (traj.path.poses.size() > look_ahead_time_z - 1){
+                    t = look_ahead_time_z;
                 } else {
                     t = traj.path.poses.size() - 1;
                 }
@@ -429,11 +434,11 @@ int main(int argc, char **argv)
             pub_rotate.publish(msg_rotate);
 
             if (!traj_init){
-                traj.init_traj(Position3d(x,y,z), Position3d(initial_x, initial_y, initial_z), Position3d(vx, vy, 0), average_speed, 1/main_iter_rate);
+                traj.init_traj(Position3d(x,y,z), Position3d(initial_x, initial_y, initial_z), Position3d(vx, vy, 0), average_speed_z, 1/main_iter_rate);
                 pub_traj.publish(traj.path);
                 
-                if (traj.path.poses.size() > look_ahead_time - 1){
-                    t = look_ahead_time;
+                if (traj.path.poses.size() > look_ahead_time_z - 1){
+                    t = look_ahead_time_z;
                 } else {
                     t = traj.path.poses.size() - 1;
                 }

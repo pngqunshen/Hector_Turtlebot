@@ -232,8 +232,6 @@ void cbMagnet(const geometry_msgs::Vector3Stamped::ConstPtr &msg)
     //// IMPLEMENT MAG ////
     double mx = msg->vector.x;
     double my = msg->vector.y;
-    // double roty = - mx * sin(A(0)) + my * cos(A(0));
-    // double rotx = mx * cos(A(0)) + my * sin(A(0));
     a_mgn = -atan2(my, mx);
     double h_mgn_a = A(0,0);
     ekfCorrectionYaw(a_mgn, h_mgn_a, H_mgn, V_mgn, r_mgn_a, 0);
@@ -268,14 +266,10 @@ double z_bar = NaN;
 // EKF Correction Stuff for Baro
 double r_bar_z;
 double V_bar = 1;
-// Baro bias terms
-std::list <double> baro_bias_terms; // store bias terms for calibration
-double baro_bias; // calculated baro bias term
 cv::Matx13d H_bar = {1, 0, 1};
 void cbBaro(const hector_uav_msgs::Altimeter::ConstPtr &msg)
 {
     if (!ready) {
-        baro_bias_terms.push_back(msg->altitude);
         return;
     }
     //// IMPLEMENT BARO ////
@@ -306,19 +300,6 @@ void cbBaro(const hector_uav_msgs::Altimeter::ConstPtr &msg)
     //     }
     //     ROS_INFO_STREAM("baro variance: " << variance);
     // }
-}
-
-// --------- BARO CALIBRATION ----------
-bool baroNotCalibrated() {
-    if (baro_bias_terms.size() < 30) { // take at least 30 terms
-        return true;
-    }
-    double sum = 0;
-    for (auto it = baro_bias_terms.begin(); it != baro_bias_terms.end(); ++it) {
-        sum += *it;
-    }
-    baro_bias = sum/baro_bias_terms.size() - Z(0); // find bias offset from intial Z
-    return false;
 }
 
 // --------- Sonar ----------
@@ -464,11 +445,6 @@ int main(int argc, char **argv)
         ROS_INFO("HMOTION: Calibrated Gyro");
     else
         ROS_WARN("HMOTION: Gyro cannot be calibrated!");
-    ROS_INFO("HMOTION: Calibrating Baro...");
-    // while (enable_baro && baroNotCalibrated()) { // loop endlessly until barometer is calibrated
-    //     ros::spinOnce(); // update topics
-    // }
-    ROS_INFO("HMOTION: Calibrated Baro");
 
     // --------- Main loop ----------
     ros::Rate rate(motion_iter_rate);

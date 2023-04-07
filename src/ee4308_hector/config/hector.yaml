@@ -5,6 +5,7 @@ height: 2
 look_ahead: 1
 close_enough: 0.2
 average_speed: 2.0
+average_speed_z: 0.5
 
 # motion
 verbose_motion: true
