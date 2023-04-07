@@ -10,6 +10,7 @@ average_speed_z: 0.5
 # motion
 verbose_motion: true
 use_ground_truth: false
+debug_motion: false
 qa: 50
 qx: 50
 qy: 50
@@ -29,6 +30,7 @@ motion_iter_rate: 20
 # move
 enable_move: true
 verbose_move: false
+debug_move: false
 Kp_lin: 0.4
 Ki_lin: 0.0
 Kd_lin: 0.02

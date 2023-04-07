@@ -69,6 +69,9 @@ int main(int argc, char **argv)
     bool verbose;
     if (!nh.param("verbose_move", verbose, false))
         ROS_WARN(" HMOVE : Param verbose_move not found, set to false");
+    bool debug;
+    if (!nh.param("debug_move", debug, false))
+        ROS_WARN(" HMOVE : Param debug_move not found, set to false");
     double Kp_lin;
     if (!nh.param("Kp_lin", Kp_lin, 1.0))
         ROS_WARN(" HMOVE : Param Kp_lin not found, set to 1.0");
@@ -186,50 +189,53 @@ int main(int argc, char **argv)
         msg_cmd.angular.z = cmd_lin_vel_a;
         pub_cmd.publish(msg_cmd);
 
-        //pid tuning code for z
-        // if (z > 0.178 + (0.1 *  0.08) ){
-        //     if (rise_time_start == -1){
-        //         rise_time_start = ros::Time::now().toSec();
-        //         ROS_INFO("start");
-        //     }
-        // }
-        // if (z > 0.178 + (0.9 * 0.08)){
-        //     if (rise_time_end == -1){
-        //         rise_time_end = ros::Time::now().toSec();
-        //         ROS_INFO("end");
+        if (debug) {
+            // pid tuning code for z
+            if (z > 0.178 + (0.1 *  0.08) ){
+                if (rise_time_start == -1){
+                    rise_time_start = ros::Time::now().toSec();
+                    ROS_INFO("start");
+                }
+            }
+            if (z > 0.178 + (0.9 * 0.08)){
+                if (rise_time_end == -1){
+                    rise_time_end = ros::Time::now().toSec();
+                    ROS_INFO("end");
 
-        //     }
-        //     if (z - (0.178 + 0.08) > max_overshoot){
-        //         max_overshoot = z - (0.178 + 0.08);
-        //     }
-        // }
+                }
+                if (z - (0.178 + 0.08) > max_overshoot){
+                    max_overshoot = z - (0.178 + 0.08);
+                }
+            }
 
-        // if (rise_time_end > 0){
-        //     ROS_INFO_STREAM("rise time " << (rise_time_end - rise_time_start));
-        //     ROS_INFO_STREAM("max_overshoot " << max_overshoot);
-        // }
-        //end of pid tuning code
+            if (rise_time_end > 0){
+                ROS_INFO_STREAM("rise time " << (rise_time_end - rise_time_start));
+                ROS_INFO_STREAM("max_overshoot " << max_overshoot);
+            }
+            // end of pid tuning code
 
-        //pid tuning code for lin
-        // if (x > 2 + (0.1 *  0.08) ){
-        //     if (rise_time_start == -1){
-        //         rise_time_start = ros::Time::now().toSec();
-        //     }
-        // }
-        // if (x > 2 + (0.9 * 0.08)){
-        //     if (rise_time_end == -1){
-        //         rise_time_end = ros::Time::now().toSec();
-        //     }
-        //     if (x - (2 + 0.08) > max_overshoot){
-        //         max_overshoot = x - (2 + 0.08);
-        //     }
-        // }
+            // pid tuning code for lin
+            if (x > 2 + (0.1 *  0.08) ){
+                if (rise_time_start == -1){
+                    rise_time_start = ros::Time::now().toSec();
+                }
+            }
+            if (x > 2 + (0.9 * 0.08)){
+                if (rise_time_end == -1){
+                    rise_time_end = ros::Time::now().toSec();
+                }
+                if (x - (2 + 0.08) > max_overshoot){
+                    max_overshoot = x - (2 + 0.08);
+                }
+            }
 
-        // if (rise_time_end > 0){
-        //     ROS_INFO_STREAM("rise time " << (rise_time_end - rise_time_start));
-        //     ROS_INFO_STREAM("max_overshoot " << max_overshoot);
-        // }
-        //end of pid tuning code
+            if (rise_time_end > 0){
+                ROS_INFO_STREAM("rise time " << (rise_time_end - rise_time_start));
+                ROS_INFO_STREAM("max_overshoot " << max_overshoot);
+            }
+            // end of pid tuning code
+        }
+
 
 
         //// IMPLEMENT /////
