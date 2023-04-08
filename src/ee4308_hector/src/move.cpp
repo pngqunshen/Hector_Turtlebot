@@ -79,9 +79,9 @@ int main(int argc, char **argv)
         ROS_WARN(" HMOVE : Param verbose_move not found, set to false");
     bool pid_tuning_z, pid_tuning_xy;
     if (!nh.param("pid_tuning_z", pid_tuning_z, false))
-        ROS_WARN("HMOTION: Param debug_motion not found, set to false");
+        ROS_WARN("HMOTION: Param pid_tuning_z not found, set to false");
     if (!nh.param("pid_tuning_xy", pid_tuning_xy, false))
-        ROS_WARN("HMOTION: Param debug_motion not found, set to false");
+        ROS_WARN("HMOTION: Param pid_tuning_xy not found, set to false");
     double Kp_lin;
     if (!nh.param("Kp_lin", Kp_lin, 1.0))
         ROS_WARN(" HMOVE : Param Kp_lin not found, set to 1.0");
@@ -180,7 +180,7 @@ int main(int argc, char **argv)
         }
         cv::Matx33d rotation = { cos(a), sin(a), 0,
                                 -sin(a), cos(a), 0,
-                                     0,       0, 1 };
+                                 0     , 0     , 1 };
 
         if (pid_tuning_z){
             target_x = initial_x;

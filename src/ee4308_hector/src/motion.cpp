@@ -24,13 +24,13 @@ bool ready = false; // signal to topics to begin
 
 // --------- PREDICTION WITH IMU ----------
 const double G = 9.8;
-double prev_imu_t = 0;
+double prev_imu_t = 0; // track previous IMU time so dt can be calculated
 cv::Matx21d X = {0, 0}, Y = {0, 0}; // see intellisense. This is equivalent to cv::Matx<double, 2, 1>
 cv::Matx21d A = {0, 0};
-cv::Matx31d Z = {0, 0, 0};
+cv::Matx31d Z = {0, 0, 0}; // changed to 3x1 vector to account for baro bias
 cv::Matx22d P_x = cv::Matx22d::ones(), P_y = cv::Matx22d::ones();
 cv::Matx22d P_a = cv::Matx22d::ones();
-cv::Matx33d P_z = cv::Matx33d::ones();
+cv::Matx33d P_z = cv::Matx33d::ones(); // changed to 3x3 matrix to account for baro bias
 double ua = NaN, ux = NaN, uy = NaN, uz = NaN;
 double qa, qx, qy, qz;
 // see https://docs.opencv.org/3.4/de/de1/classcv_1_1Matx.html
@@ -51,65 +51,76 @@ void cbImu(const sensor_msgs::Imu::ConstPtr &msg)
     ua = msg->angular_velocity.z;
     ux = msg->linear_acceleration.x;
     uy = msg->linear_acceleration.y;
-    uz = msg->linear_acceleration.z - G;
+    uz = msg->linear_acceleration.z - G; // subtract gravitatational acceleration
     
     //// IMPLEMENT IMU ////
-    cv::Matx21d imu_acc = {ux, uy};
+    cv::Matx21d imu_acc = {ux, uy}; // 2x1 vextor of x and y IMU acceleration reading
+    /////////////////////////////////////
     // X
-    cv::Matx22d F_xk = {
+    cv::Matx22d F_xk = { // jacobian matrix with respect to previous x state
         1, imu_dt,
         0, 1
     };
-    cv::Matx22d W_xk = {
+    cv::Matx22d W_xk = { // jacobian matrix with respect to previous IMU reading in x
         -0.5*pow(imu_dt, 2)*cos(A(0)), 0.5*pow(imu_dt, 2)*sin(A(0)),
         -imu_dt*cos(A(0))            , imu_dt*sin(A(0)) 
     };
-    cv::Matx22d Qx = {
+    cv::Matx22d Qx = { // diagonal covariance matrix of the IMU noise in x and y
         qx, 0 ,
         0 , qy
     };
-    X = F_xk*X + W_xk*imu_acc;
-    P_x = F_xk*P_x*F_xk.t() + W_xk*Qx*W_xk.t();
+    X = F_xk*X + W_xk*imu_acc; // EKF prediction of X from IMU
+    P_x = F_xk*P_x*F_xk.t() + W_xk*Qx*W_xk.t(); // filtered covariance matrix of X from IMU
+    /////////////////////////////////////
 
+    /////////////////////////////////////
     // Y
-    cv::Matx22d F_yk = {
+    cv::Matx22d F_yk = { // jacobian matrix with respect to previous IMU y state
         1, imu_dt,
         0, 1
     };
-    cv::Matx22d W_yk = {
+    cv::Matx22d W_yk = { // jacobian matrix with respect to previous IMU reading in y
         -0.5*pow(imu_dt, 2)*sin(A(0)),-0.5*pow(imu_dt, 2)*cos(A(0)),
         -imu_dt*sin(A(0))            ,-imu_dt*cos(A(0)) 
     };
-    cv::Matx22d Qy = {
+    cv::Matx22d Qy = { // diagonal covariance matrix of the IMU noise in x and y
         qx, 0 ,
         0 , qy
     };
-    Y = F_yk*Y + W_yk*imu_acc;
-    P_y = F_yk*P_y*F_yk.t() + W_yk*Qy*W_yk.t();
+    Y = F_yk*Y + W_yk*imu_acc; // EKF prediction of Y from IMU
+    P_y = F_yk*P_y*F_yk.t() + W_yk*Qy*W_yk.t(); // filtered covariance matrix of Y from IMU
+    /////////////////////////////////////
 
+    /////////////////////////////////////
     // Z
-    cv::Matx33d F_zk = {
+    cv::Matx33d F_zk = { // jacobian matrix with respect to previous IMU z state
         1, imu_dt, 0,
         0, 1     , 0,
         0, 0     , 1    
     };
+    // jacobian matrix with respect to previous IMU reading in z
     cv::Matx31d W_zk = {0.5*pow(imu_dt, 2), imu_dt, 0};
-    double Qz = qz;
-    Z = F_zk * Z + W_zk * uz;
-    P_z = F_zk*P_z*F_zk.t() + W_zk*Qz*W_zk.t();
+    double Qz = qz; // diagonal covariance matrix of the IMU noise in z
+    Z = F_zk * Z + W_zk * uz; // EKF prediction of Z from IMU
+    P_z = F_zk*P_z*F_zk.t() + W_zk*Qz*W_zk.t(); // filtered covariance matrix of Z from IMU
+    /////////////////////////////////////
 
+    /////////////////////////////////////
     // A
-    cv::Matx22d F_ak = {
+    cv::Matx22d F_ak = { // jacobian matrix with respect to previous IMU angular state
         1, 0,
         0, 0
     };
+    // jacobian matrix with respect to previous IMU reading in angular
     cv::Matx21d W_ak = {imu_dt, 1};
-    double Qa = qa;
-    A = F_ak*A + W_ak*ua;
-    P_a = F_ak*P_a*F_ak.t() + W_ak*Qa*W_ak.t();
+    double Qa = qa; // diagonal covariance matrix of the IMU noise in angular
+    A = F_ak*A + W_ak*ua; // EKF prediction of angular from IMU
+    P_a = F_ak*P_a*F_ak.t() + W_ak*Qa*W_ak.t(); // filtered covariance matrix of angular from IMU
+    /////////////////////////////////////
 }
 
 // --------- EKF CORRECTION ----------
+// EKF correction in X. 1x1 matrices are taken in double to simplify calculation
 void ekfCorrectionX(double Y_k, double h, cv::Matx12d H_k, double V_k, 
                     double R_k, double bias) {
     cv::Matx21d K_k = P_x*H_k.t() * 
@@ -118,6 +129,7 @@ void ekfCorrectionX(double Y_k, double h, cv::Matx12d H_k, double V_k,
     P_x = P_x - K_k*H_k*P_x;
 }
 
+// EKF correction in Y. 1x1 matrices are taken in double to simplify calculation
 void ekfCorrectionY(double Y_k, double h, cv::Matx12d H_k, double V_k, 
                     double R_k, double bias) {
     cv::Matx21d K_k = P_y*H_k.t() * 
@@ -126,6 +138,7 @@ void ekfCorrectionY(double Y_k, double h, cv::Matx12d H_k, double V_k,
     P_y = P_y - K_k*H_k*P_y;
 }
 
+// EKF correction in Z. 1x1 matrices are taken in double to simplify calculation
 void ekfCorrectionZ(double Y_k, double h, cv::Matx13d H_k, double V_k, 
                     double R_k, double bias) {
     cv::Matx31d K_k = P_z*H_k.t() * 
@@ -134,6 +147,7 @@ void ekfCorrectionZ(double Y_k, double h, cv::Matx13d H_k, double V_k,
     P_z = P_z - K_k*H_k*P_z;
 }
 
+// EKF correction in yaw. 1x1 matrices are taken in double to simplify calculation
 void ekfCorrectionYaw(double Y_k, double h, cv::Matx12d H_k, double V_k, 
                       double R_k, double bias) {
     cv::Matx21d K_k = P_a*H_k.t() * 
@@ -143,29 +157,30 @@ void ekfCorrectionYaw(double Y_k, double h, cv::Matx12d H_k, double V_k,
 }
 
 // for variance calculation
-std::vector<float> sonar_data;
-std::vector<float> baro_data;
-std::vector<float> mag_data;
+std::vector<float> sonar_data; // variance date for sonar
+std::vector<float> baro_data; // variance date for baro
+std::vector<float> mag_data; // variance date for magnetometer
 
 // --------- GPS ----------
 // https://docs.ros.org/en/api/sensor_msgs/html/msg/NavSatFix.html
 cv::Matx31d GPS = {NaN, NaN, NaN};
 cv::Matx31d initial_pos = {NaN, NaN, NaN}; // written below in main. no further action needed.
-const double DEG2RAD = M_PI / 180;
-const double RAD_POLAR = 6356752.3;
-const double RAD_EQUATOR = 6378137;
+const double DEG2RAD = M_PI / 180; // to convert degree to radian
+const double RAD_POLAR = 6356752.3; // polar radius of Earth
+const double RAD_EQUATOR = 6378137; // equatorial radius of Earth
 double r_gps_x, r_gps_y, r_gps_z;
 
 cv::Matx31d initial_ECEF = {NaN, NaN, NaN};
+// rotation matrix from local NED to Gazebo world frame
 cv::Matx33d rot_m_n = {
     1,  0,  0,
     0, -1,  0,
     0,  0, -1
 };
 // EKF Correction Stuff for GPS
-cv::Matx12d H_gps = {1, 0};
-cv::Matx13d H_gps_z = {1, 0, 0};
-double V_gps = 1;
+cv::Matx12d H_gps = {1, 0}; // H matrix for GPS for x and y
+cv::Matx13d H_gps_z = {1, 0, 0}; // H matrix for GPS for z as baro bias is included
+double V_gps = 1; // V matrix for gps, 1x1 matrix so double is used
 
 void cbGps(const sensor_msgs::NavSatFix::ConstPtr &msg)
 {
@@ -177,12 +192,13 @@ void cbGps(const sensor_msgs::NavSatFix::ConstPtr &msg)
     double lon = msg->longitude; //IN DEGREES
     double alt = msg->altitude;
 
-    double lat_rad = DEG2RAD * lat;
-    double lon_rad = DEG2RAD * lon;
+    double lat_rad = DEG2RAD * lat; // convert lat measurements to radians
+    double lon_rad = DEG2RAD * lon; // convert lon measurements to radians
 
     double eccentricity_sq = 1 - (pow(RAD_POLAR, 2) / pow(RAD_EQUATOR, 2));
     double n_phi = RAD_EQUATOR / sqrt(1 - (eccentricity_sq * pow(sin(lat_rad), 2)));
     
+    // GPS readings in ECEF coordinates
     cv::Matx31d ECEF = {
         (n_phi + alt) * cos(lat_rad) * cos(lon_rad),
         (n_phi + alt) * cos(lat_rad) * sin(lon_rad),
@@ -196,24 +212,28 @@ void cbGps(const sensor_msgs::NavSatFix::ConstPtr &msg)
         return;
     }
     
+    // rotation matrix from ECEF to local NED frame
     cv::Matx33d rot_e_n = {
         -sin(lat_rad) * cos(lon_rad), -sin(lon_rad), -cos(lat_rad) * cos(lon_rad),
         -sin(lat_rad) * sin(lon_rad),  cos(lon_rad), -cos(lat_rad) * sin(lon_rad),
          cos(lat_rad)               ,  0           , -sin(lat_rad)
     };
 
+    // GPS readings in local NED frame
     cv::Matx31d local_NED = rot_e_n.t() * (ECEF - initial_ECEF);
 
+    // GPS readings in Gazebo world frame
     GPS = rot_m_n * local_NED + initial_pos;
 
-    double Y_gps_x = GPS(0,0);
-    double Y_gps_y = GPS(1,0);
-    double Y_gps_z = GPS(2,0);
+    double Y_gps_x = GPS(0,0); // final reading x
+    double Y_gps_y = GPS(1,0); // final reading y
+    double Y_gps_z = GPS(2,0); // final reading z
 
     double h_gps_x = X(0,0);
     double h_gps_y = Y(0,0);
     double h_gps_z = Z(0,0);
 
+    // EKF correction
     ekfCorrectionX(Y_gps_x, h_gps_x, H_gps, V_gps, r_gps_x, 0);
     ekfCorrectionY(Y_gps_y, h_gps_y, H_gps, V_gps, r_gps_y, 0);
     ekfCorrectionZ(Y_gps_z, h_gps_z, H_gps_z, V_gps, r_gps_z, 0);
@@ -222,8 +242,8 @@ void cbGps(const sensor_msgs::NavSatFix::ConstPtr &msg)
 // --------- Magnetic ----------
 double a_mgn = NaN;
 double r_mgn_a;
-cv::Matx12d H_mgn = {1, 0};
-double V_mgn = 1;
+cv::Matx12d H_mgn = {1, 0}; // H matrix for magnetometer for yaw
+double V_mgn = 1; // V matrix for magnetometer, 1x1 matrix so double is used
 void cbMagnet(const geometry_msgs::Vector3Stamped::ConstPtr &msg)
 {
     if (!ready)
@@ -232,8 +252,10 @@ void cbMagnet(const geometry_msgs::Vector3Stamped::ConstPtr &msg)
     //// IMPLEMENT MAG ////
     double mx = msg->vector.x;
     double my = msg->vector.y;
-    a_mgn = -atan2(my, mx);
+    a_mgn = -atan2(my, mx); // negative atan2 to convert reading into heading
     double h_mgn_a = A(0,0);
+
+    // EKF correction
     ekfCorrectionYaw(a_mgn, h_mgn_a, H_mgn, V_mgn, r_mgn_a, 0);
 
     // for variance calculation
@@ -267,8 +289,8 @@ void cbMagnet(const geometry_msgs::Vector3Stamped::ConstPtr &msg)
 double z_bar = NaN;
 // EKF Correction Stuff for Baro
 double r_bar_z;
-double V_bar = 1;
-cv::Matx13d H_bar = {1, 0, 1};
+cv::Matx13d H_bar = {1, 0, 1}; // H matrix for barometer for z, including bias
+double V_bar = 1; // V matrix for barometer, 1x1 matrix so double is used
 void cbBaro(const hector_uav_msgs::Altimeter::ConstPtr &msg)
 {
     if (!ready) {
@@ -277,6 +299,9 @@ void cbBaro(const hector_uav_msgs::Altimeter::ConstPtr &msg)
     //// IMPLEMENT BARO ////
      z_bar = msg->altitude;
      double h_bar_z = Z(0,0);
+
+     // EKF correction
+     // bias is 3rd term in the Z state
      ekfCorrectionZ(z_bar, h_bar_z, H_bar, V_bar, r_bar_z, Z(2));
     
     // for variance calculation
@@ -310,8 +335,8 @@ void cbBaro(const hector_uav_msgs::Altimeter::ConstPtr &msg)
 double z_snr = NaN;
 double r_snr_z;
 // EKF Correction Stuff for GPS
-cv::Matx13d H_snr = {1, 0, 0};
-double V_snr = 1;
+cv::Matx13d H_snr = {1, 0, 0}; // H matrix for sonar for z, including baro bias
+double V_snr = 1; // V matrix for barometer, 1x1 matrix so double is used
 void cbSonar(const sensor_msgs::Range::ConstPtr &msg)
 {
     if (!ready)
@@ -321,6 +346,8 @@ void cbSonar(const sensor_msgs::Range::ConstPtr &msg)
     z_snr = msg->range;
     
     double h_snr = Z(0,0);
+
+    // EKF correction
     ekfCorrectionZ(z_snr, h_snr, H_snr, V_snr, r_snr_z, 0);  
 
     // for variance calculation
@@ -462,7 +489,7 @@ int main(int argc, char **argv)
     {
         ros::spinOnce(); // update topics
 
-        // for comapring with ground truth
+        // for comparing with ground truth
         double rmseX = 0;
         double rmseY = 0;
         double rmseZ = 0;
