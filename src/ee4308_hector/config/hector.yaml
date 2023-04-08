@@ -10,6 +10,7 @@ average_speed_z: 0.5
 # motion
 verbose_motion: true
 use_ground_truth: false
+debug_motion: false # this will record variance for sonar, baro and magento, will also keep track of mse of ekf estimate and ground truth
 qa: 1
 qx: 1
 qy: 1
@@ -29,6 +30,8 @@ motion_iter_rate: 20
 # move
 enable_move: true
 verbose_move: false
+pid_tuning_z: false  # this will send set a z setpoint of 2m and record rise time and overshoot
+pid_tuning_xy: false  # this will send a x setpoint of 2m and record rise time and overshoot, it is assumed that x and y are the same
 Kp_lin: 0.5 
 Ki_lin: 0
 Kd_lin: 0.1

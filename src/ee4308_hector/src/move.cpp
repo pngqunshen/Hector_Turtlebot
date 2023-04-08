@@ -77,9 +77,11 @@ int main(int argc, char **argv)
     bool verbose;
     if (!nh.param("verbose_move", verbose, false))
         ROS_WARN(" HMOVE : Param verbose_move not found, set to false");
-    bool debug;
-    if (!nh.param("debug_move", debug, false))
-        ROS_WARN(" HMOVE : Param debug_move not found, set to false");
+    bool pid_tuning_z, pid_tuning_xy;
+    if (!nh.param("pid_tuning_z", pid_tuning_z, false))
+        ROS_WARN("HMOTION: Param debug_motion not found, set to false");
+    if (!nh.param("pid_tuning_xy", pid_tuning_xy, false))
+        ROS_WARN("HMOTION: Param debug_motion not found, set to false");
     double Kp_lin;
     if (!nh.param("Kp_lin", Kp_lin, 1.0))
         ROS_WARN(" HMOVE : Param Kp_lin not found, set to 1.0");
@@ -110,7 +112,13 @@ int main(int argc, char **argv)
     double move_iter_rate;
     if (!nh.param("move_iter_rate", move_iter_rate, 25.0))
         ROS_WARN(" HMOVE : Param move_iter_rate not found, set to 25");
-    
+    double initial_x, initial_y, initial_z;
+    if (!nh.param("initial_x", initial_x, 0.0))
+        ROS_WARN("HMOTION: Param initial_x not found, set initial_x to 0.0");
+    if (!nh.param("initial_y", initial_y, 0.0))
+        ROS_WARN("HMOTION: Param initial_y not found, set initial_y to 0.0");
+    if (!nh.param("initial_z", initial_z, 0.178))
+        ROS_WARN("HMOTION: Param initial_z not found, set initial_z to 0.178");
     // --------- Enable Motors ----------
     ROS_INFO(" HMOVE : Enabling motors...");
     en_mtrs = nh.serviceClient<hector_uav_msgs::EnableMotors>("enable_motors");
@@ -157,6 +165,9 @@ int main(int argc, char **argv)
     double rmseA = 0;
     double rmseLin = 0;
     int counter = 0;
+
+    double PID_TESTING_SETPOINT = 2;
+    bool height_reached = false;
     
     
     // main loop
@@ -176,7 +187,24 @@ int main(int argc, char **argv)
         cv::Matx33d rotation = { cos(a), sin(a), 0,
                                 -sin(a), cos(a), 0,
                                      0,       0, 1 };
-        
+
+        if (pid_tuning_z){
+            target_x = initial_x;
+            target_y = initial_y;
+            target_z = initial_z + PID_TESTING_SETPOINT;
+        } else if (pid_tuning_xy){
+            if (abs(z - PID_TESTING_SETPOINT) > 0.2 && !height_reached){
+                target_x = initial_x;
+                target_y = initial_y;
+                target_z = PID_TESTING_SETPOINT;
+            } else {
+                height_reached = true;
+                target_x = initial_x + PID_TESTING_SETPOINT;
+                target_y = initial_y;
+                target_z = PID_TESTING_SETPOINT;
+            }
+                
+        }
 
         double e_x = target_x - x;
         double e_y = target_y - y;
@@ -207,71 +235,68 @@ int main(int argc, char **argv)
         //pid tuning code for z
         //PID target set as 2m, the actual height for the hector
         //use ground truth values for PID tuning
-        auto & tp = msg_true.pose.pose.position;
-        auto &q_gt = msg_true.pose.pose.orientation;
-        double siny_cosp_gt = 2 * (q_gt.w * q_gt.z + q_gt. x * q_gt.y);
-        double cosy_cosp_gt = 1 - 2 * (q_gt.y * q_gt.y + q_gt.z * q_gt.z);
+        // auto & tp = msg_true.pose.pose.position;
+        // auto &q_gt = msg_true.pose.pose.orientation;
+        // double siny_cosp_gt = 2 * (q_gt.w * q_gt.z + q_gt. x * q_gt.y);
+        // double cosy_cosp_gt = 1 - 2 * (q_gt.y * q_gt.y + q_gt.z * q_gt.z);
 
-        // double PID_TESTING_SETPOINT = 2;
-        // if (tp.z > 0.178 + (PID_TESTING_SETPOINT * 0.1) ) { //include the starting offset of 0.178
-        //     if (rise_time_start == -1){
-        //         rise_time_start = ros::Time::now().toSec();
-        //         ROS_INFO("Start recording Z axis rise time");
-        //     }
-        // }
-        // if (tp.z >= 0.178 + (PID_TESTING_SETPOINT * 0.9)) { 
-        //     if (rise_time_end == -1){
-        //         rise_time_end = ros::Time::now().toSec();
-        //         ROS_INFO("End recording Z axis rise time");
+        if (pid_tuning_z){
+            if (z > 0.178 + (PID_TESTING_SETPOINT * 0.1) ) { //include the starting offset of 0.178
+                if (rise_time_start == -1){
+                    rise_time_start = ros::Time::now().toSec();
+                    ROS_INFO("Start recording Z axis rise time");
+                }
+            }
+            if (z >= 0.178 + (PID_TESTING_SETPOINT * 0.9)) { 
+                if (rise_time_end == -1){
+                    rise_time_end = ros::Time::now().toSec();
+                    ROS_INFO("End recording Z axis rise time");
 
-        //     }
-        //     if (tp.z - (0.178 + PID_TESTING_SETPOINT) > max_overshoot){
-        //         max_overshoot = tp.z - (0.178 + PID_TESTING_SETPOINT);
-        //     }
-        // }
+                }
+                if (z - (0.178 + PID_TESTING_SETPOINT) > max_overshoot){
+                    max_overshoot = z - (0.178 + PID_TESTING_SETPOINT);
+                }
+            }
 
-        // if (rise_time_end > 0){
-        //     ROS_INFO_STREAM("Rise Time Z: " << (rise_time_end - rise_time_start));
-        //     ROS_INFO_STREAM("Max Overshoot Z:  " << 100 * max_overshoot / PID_TESTING_SETPOINT  << "%");
-        //     ROS_INFO_STREAM("Ground Truth Z: " << tp.z);
-        // }
-        //end of pid tuning code
-        //distance of 2m chosen arbritratily
+            if (rise_time_end > 0){
+                ROS_INFO_STREAM("Rise Time Z: " << (rise_time_end - rise_time_start));
+                ROS_INFO_STREAM("Max Overshoot Z:  " << 100 * max_overshoot / PID_TESTING_SETPOINT  << "%");
+            }
+        }
+        
+        if (pid_tuning_xy && height_reached){
+            if (x > initial_x + (0.1 *  PID_TESTING_SETPOINT) ){
+                if (rise_time_start == -1){
+                    rise_time_start = ros::Time::now().toSec();
+                }
+            }
+            if (x > initial_x + (0.9 * PID_TESTING_SETPOINT)){
+                if (rise_time_end == -1){
+                    rise_time_end = ros::Time::now().toSec();
+                }
+                if (x - (initial_x + PID_TESTING_SETPOINT) > max_overshoot){
+                    max_overshoot = x - (initial_x + PID_TESTING_SETPOINT);
+                }
+            }
 
-        // // pid tuning code for lin
-        // if (tp.x > 2 + (0.1 *  PID_TESTING_SETPOINT) ){
-        //     if (rise_time_start == -1){
-        //         rise_time_start = ros::Time::now().toSec();
-        //     }
-        // }
-        // if (tp.x > 2 + (0.9 * PID_TESTING_SETPOINT)){
-        //     if (rise_time_end == -1){
-        //         rise_time_end = ros::Time::now().toSec();
-        //     }
-        //     if (tp.x - (2 + PID_TESTING_SETPOINT) > max_overshoot){
-        //         max_overshoot = tp.x - (2 + PID_TESTING_SETPOINT);
-        //     }
-        // }
+            if (rise_time_end > 0){
+                ROS_INFO_STREAM("Rise Time X:" << (rise_time_end - rise_time_start));
+                ROS_INFO_STREAM("Max Overshoot X:  " << 100 * max_overshoot / PID_TESTING_SETPOINT << "%");
+            }
+        }
 
-        // if (rise_time_end > 0){
-        //     ROS_INFO_STREAM("Rise Time X:" << (rise_time_end - rise_time_start));
-        //     ROS_INFO_STREAM("Max Overshoot X:  " << 100 * max_overshoot / PID_TESTING_SETPOINT << "%");
-        //     ROS_INFO_STREAM("Ground Truth X: " << tp.x);
-        // }
-        // // end of pid tuning code
+        // counter++;
+        // rmseX += pow(tp.x - x, 2);
+        // rmseY += pow(tp.y - y, 2);
+        // rmseLin += pow(tp.x - x, 2) + pow(tp.y - y, 2);
+        // rmseZ += pow(tp.z - z, 2);
+        // rmseA += pow(atan2(siny_cosp_gt, cosy_cosp_gt) - a, 2);
 
-        counter++;
-        rmseX += pow(tp.x - x, 2);
-        rmseY += pow(tp.y - y, 2);
-        rmseLin += pow(tp.x - x, 2) + pow(tp.y - y, 2);
-        rmseZ += pow(tp.z - z, 2);
-        rmseA += pow(atan2(siny_cosp_gt, cosy_cosp_gt) - a, 2);
-
-        ROS_INFO_STREAM("RMSE X: " << sqrt(rmseX / counter));
-        ROS_INFO_STREAM("RMSE Y: " << sqrt(rmseY / counter));
-        ROS_INFO_STREAM("RMSE LINEAR: " << sqrt(rmseLin / counter));
-        ROS_INFO_STREAM("RMSE Z: " << sqrt(rmseZ / counter));
-        ROS_INFO_STREAM("RMSE A: " << sqrt(rmseA / counter));
+        // ROS_INFO_STREAM("RMSE X: " << sqrt(rmseX / counter));
+        // ROS_INFO_STREAM("RMSE Y: " << sqrt(rmseY / counter));
+        // ROS_INFO_STREAM("RMSE LINEAR: " << sqrt(rmseLin / counter));
+        // ROS_INFO_STREAM("RMSE Z: " << sqrt(rmseZ / counter));
+        // ROS_INFO_STREAM("RMSE A: " << sqrt(rmseA / counter));
 
 
         //// IMPLEMENT /////
