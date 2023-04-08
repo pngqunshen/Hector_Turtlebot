@@ -462,6 +462,14 @@ int main(int argc, char **argv)
     {
         ros::spinOnce(); // update topics
 
+        // for comapring with ground truth
+        double rmseX = 0;
+        double rmseY = 0;
+        double rmseZ = 0;
+        double rmseA = 0;
+        double rmseLin = 0;
+        int counter = 0;
+
         // Verbose
         if (verbose)
         {
@@ -503,6 +511,25 @@ int main(int argc, char **argv)
             msg_vel.linear.y = Y(1);
             msg_vel.linear.z = Z(1);
             msg_vel.angular.z = A(1);
+
+            if (debug && !use_ground_truth)
+            {
+                double siny_cosp_gt = 2 * (msg_true.pose.pose.orientation.w * msg_true.pose.pose.orientation.z + msg_true.pose.pose.orientation.x * msg_true.pose.pose.orientation.y);
+                double cosy_cosp_gt = 1 - 2 * (msg_true.pose.pose.orientation.y * msg_true.pose.pose.orientation.y + msg_true.pose.pose.orientation.z * msg_true.pose.pose.orientation.z);
+
+                counter++;
+                rmseX += pow(msg_true.pose.pose.position.x - X(0), 2);
+                rmseY += pow(msg_true.pose.pose.position.y - Y(0), 2);
+                rmseLin += pow(msg_true.pose.pose.position.x - X(0), 2) + pow(msg_true.pose.pose.position.y - Y(0), 2);
+                rmseZ += pow(msg_true.pose.pose.position.z - Z(0), 2);
+                rmseA += pow(atan2(siny_cosp_gt, cosy_cosp_gt) - A(0), 2);
+
+                ROS_INFO_STREAM("RMSE X: " << sqrt(rmseX / counter));
+                ROS_INFO_STREAM("RMSE Y: " << sqrt(rmseY / counter));
+                ROS_INFO_STREAM("RMSE LINEAR: " << sqrt(rmseLin / counter));
+                ROS_INFO_STREAM("RMSE Z: " << sqrt(rmseZ / counter));
+                ROS_INFO_STREAM("RMSE A: " << sqrt(rmseA / counter));
+            }
         }
         pub_pose.publish(msg_pose);
         pub_vel.publish(msg_vel);

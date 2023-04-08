@@ -10,7 +10,7 @@ average_speed_z: 0.5
 # motion
 verbose_motion: true
 use_ground_truth: false
-debug_motion: false # this will record variance for sonar, baro and magento, will also keep track of mse of ekf estimate and ground truth
+debug_motion: true # this will record variance for sonar, baro and magento, will also keep track of mse of ekf estimate and ground truth
 qa: 1
 qx: 1
 qy: 1

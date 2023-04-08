@@ -254,7 +254,8 @@ int main(int argc, char **argv)
             pub_rotate.publish(msg_rotate);
 
             if (!traj_init){
-                traj.init_traj(Position3d(x,y,z), Position3d(initial_x, initial_y, height), Position3d(vx, vy, vz), average_speed_z, 1/main_iter_rate);
+                // this does not use hector state to generate traj, this is because the hector estimated state takes a few iterations to converge to a reasonable value. this may cause crazy trajs 
+                traj.init_traj(Position3d(initial_x, initial_y, initial_z), Position3d(initial_x, initial_y, height), Position3d(0, 0, 0), average_speed_z, 1/main_iter_rate);
                 pub_traj.publish(traj.path);
                 
                 if (traj.path.poses.size() > look_ahead_time_z - 1){
@@ -275,15 +276,6 @@ int main(int argc, char **argv)
 
             target = traj.get_next_goal(t);
 
-                // pid tuning code 
-            //Position3d target = Position3d(initial_x, initial_y, initial_z + 2); // set target at 2, the actual height we want
-            // msg_target.point.x = target.x;
-            // msg_target.point.y = target.y;
-            // msg_target.point.z = target.z;
-            // pub_target.publish(msg_target);
-                // end of pid tuning code
-
-            //comment out state change when doing PID tuning for Z
             if (dist_euc(Position3d(x,y,z), Position3d(initial_x, initial_y, height)) < close_enough){
                 state = TURTLE;
                 traj_init = false;
@@ -337,13 +329,6 @@ int main(int argc, char **argv)
                 traj_init = false;
             }
 
-                // pid tuning code
-            //Position3d target = Position3d(initial_x + 2, initial_y, height); // set target 0.08m away (1/25Hz * 2m/s)
-            // msg_target.point.x = target.x;
-            // msg_target.point.y = target.y;
-            // msg_target.point.z = height;
-            // pub_target.publish(msg_target);
-                // end of pid tuning code 
             
             msg_target.point.x = target.x;
             msg_target.point.y = target.y;

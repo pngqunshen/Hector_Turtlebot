@@ -159,12 +159,6 @@ int main(int argc, char **argv)
     double rise_time_start = -1;
     double rise_time_end = -1;
     double max_overshoot = 0;
-    double rmseX = 0;
-    double rmseY = 0;
-    double rmseZ = 0;
-    double rmseA = 0;
-    double rmseLin = 0;
-    int counter = 0;
 
     double PID_TESTING_SETPOINT = 2;
     bool height_reached = false;
@@ -234,11 +228,6 @@ int main(int argc, char **argv)
 
         //pid tuning code for z
         //PID target set as 2m, the actual height for the hector
-        //use ground truth values for PID tuning
-        // auto & tp = msg_true.pose.pose.position;
-        // auto &q_gt = msg_true.pose.pose.orientation;
-        // double siny_cosp_gt = 2 * (q_gt.w * q_gt.z + q_gt. x * q_gt.y);
-        // double cosy_cosp_gt = 1 - 2 * (q_gt.y * q_gt.y + q_gt.z * q_gt.z);
 
         if (pid_tuning_z){
             if (z > 0.178 + (PID_TESTING_SETPOINT * 0.1) ) { //include the starting offset of 0.178
@@ -284,21 +273,6 @@ int main(int argc, char **argv)
                 ROS_INFO_STREAM("Max Overshoot X:  " << 100 * max_overshoot / PID_TESTING_SETPOINT << "%");
             }
         }
-
-        // counter++;
-        // rmseX += pow(tp.x - x, 2);
-        // rmseY += pow(tp.y - y, 2);
-        // rmseLin += pow(tp.x - x, 2) + pow(tp.y - y, 2);
-        // rmseZ += pow(tp.z - z, 2);
-        // rmseA += pow(atan2(siny_cosp_gt, cosy_cosp_gt) - a, 2);
-
-        // ROS_INFO_STREAM("RMSE X: " << sqrt(rmseX / counter));
-        // ROS_INFO_STREAM("RMSE Y: " << sqrt(rmseY / counter));
-        // ROS_INFO_STREAM("RMSE LINEAR: " << sqrt(rmseLin / counter));
-        // ROS_INFO_STREAM("RMSE Z: " << sqrt(rmseZ / counter));
-        // ROS_INFO_STREAM("RMSE A: " << sqrt(rmseA / counter));
-
-
         //// IMPLEMENT /////
         
         // verbose
