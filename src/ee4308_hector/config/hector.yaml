@@ -8,13 +8,13 @@ average_speed: 2.0
 average_speed_z: 0.5
 
 # motion
-verbose_motion: true
+verbose_motion: false
 use_ground_truth: false
 debug_motion: false # this will record variance for sonar, baro and magento, will also keep track of mse of ekf estimate and ground truth
-qa: 1
-qx: 1
-qy: 1
-qz: 1
+qa: 16
+qx: 16
+qy: 16
+qz: 16
 enable_gps: true
 r_gps_x: 25.
 r_gps_y: 25.

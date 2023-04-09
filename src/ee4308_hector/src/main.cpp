@@ -13,6 +13,7 @@
 #include "common.hpp"
 #define NaN std::numeric_limits<double>::quiet_NaN()
 
+// enum to keep track of various states of hector in FSM
 enum HectorState
 {
     TAKEOFF,
@@ -78,6 +79,7 @@ void cbTTraj(const nav_msgs::Path &msg){
     replan = true;
 }
 
+// class for quintic hermite trajectory generation
 class Trajectory{
     public:
     Trajectory(){};
@@ -92,18 +94,22 @@ class Trajectory{
         yCoeff = {0,0,0,0,0,0};
         zCoeff = {0,0,0,0,0,0};
         
-        cv::Matx66d Minv = {1, 0, 0, 0, 0, 0,
-        0, 1, 0, 0, 0, 0,
-        0, 0, 0.5, 0, 0, 0,
-        -10/pow(duration, 3), -6/pow(duration,2), -3/(2*duration), 10/pow(duration,3), -4/pow(duration,2), 1/(2*duration),
-        15/pow(duration,4), 8/pow(duration,3), 3/(2*pow(duration,2)), -15/pow(duration,4), 7/pow(duration,3), -1/pow(duration,2),
-        -6/pow(duration,5), -3/pow(duration,4), -1/(2*pow(duration,3)), 6/pow(duration,5), -3/pow(duration,4), 1/(2*pow(duration,3))
+        // inverse of matrix M, where X=MA
+        cv::Matx66d Minv = {
+         1                 , 0                , 0                    ,                  0, 0                , 0                    ,
+         0                 , 1                , 0                    ,                  0, 0                , 0                    ,
+         0                 , 0                , 0.5                  ,                  0, 0                , 0                    ,
+        -10/pow(duration,3),-6/pow(duration,2),-3/(2*duration)       , 10/pow(duration,3),-4/pow(duration,2), 1/(2*duration)       ,
+         15/pow(duration,4), 8/pow(duration,3), 3/(2*pow(duration,2)),-15/pow(duration,4), 7/pow(duration,3),-1/pow(duration,2)    ,
+        -6/pow(duration,5) ,-3/pow(duration,4),-1/(2*pow(duration,3)), 6/pow(duration,5) ,-3/pow(duration,4), 1/(2*pow(duration,3))
         };
 
+        // vector X for each direction
         cv::Vec6d x = {pos_begin.x, curr_speed.x, 0, pos_end.x, 0, 0};
         cv::Vec6d y = {pos_begin.y, curr_speed.y, 0, pos_end.y, 0, 0};
         cv::Vec6d z = {pos_begin.z, curr_speed.z, 0, pos_end.z, 0, 0};
 
+        // coefficient A
         xCoeff = Minv * x;
         yCoeff = Minv * y;
         zCoeff = Minv * z;
@@ -111,6 +117,7 @@ class Trajectory{
         path.poses.clear();
         path.header.frame_id = "world"; 
         
+        // find pose at each time step, to get trajectory smooth path
         for (int i = 0; i < duration / desired_dt; i++){
 
             geometry_msgs::PoseStamped pose;
@@ -247,35 +254,42 @@ int main(int argc, char **argv)
         //// IMPLEMENT ////
         double time_target = ros::Time::now().toSec() + 1/main_iter_rate;
         double time_now = ros::Time::now().toSec();
-        if (state == TAKEOFF)
+        if (state == TAKEOFF) // takeoff in FSM
         {   // Initial State
             // Disable Rotate
             msg_rotate.data = false;    
             pub_rotate.publish(msg_rotate);
 
             if (!traj_init){
-                // this does not use hector state to generate traj, this is because the hector estimated state takes a few iterations to converge to a reasonable value. this may cause crazy trajs 
-                traj.init_traj(Position3d(initial_x, initial_y, initial_z), Position3d(initial_x, initial_y, height), Position3d(0, 0, 0), average_speed_z, 1/main_iter_rate);
+                // this does not use hector state to generate traj, this is because 
+                // the hector estimated state takes a few iterations to converge to 
+                // a reasonable value. this may cause crazy trajs 
+                traj.init_traj(Position3d(initial_x, initial_y, initial_z), 
+                               Position3d(initial_x, initial_y, height), 
+                               Position3d(0, 0, 0), average_speed_z, 1/main_iter_rate);
                 pub_traj.publish(traj.path);
                 
+                // set goal pose from path
                 if (traj.path.poses.size() > look_ahead_time_z - 1){
                     t = look_ahead_time_z;
-                } else {
+                } else { // reaching end of path
                     t = traj.path.poses.size() - 1;
                 }
-                traj_init = true;
+                traj_init = true; // prevent init again
             }
 
+            // set goal pose from path
             if (dist_euc(Position3d(x,y,z), target) < look_ahead){
                 if (t + 1 < traj.path.poses.size()){
                     t += 1;
-                } else {
+                } else { // reaching end of path
                     t = traj.path.poses.size() - 1;
                 }
             }
 
-            target = traj.get_next_goal(t);
+            target = traj.get_next_goal(t); // get goal from path
 
+            // if close enough, go to next state, replan trajectory
             if (dist_euc(Position3d(x,y,z), Position3d(initial_x, initial_y, height)) < close_enough){
                 state = TURTLE;
                 traj_init = false;
@@ -292,44 +306,53 @@ int main(int argc, char **argv)
             msg_rotate.data = true;
             pub_rotate.publish(msg_rotate);
 
-
-
             if (!traj_init){
-                traj.init_traj(Position3d(x,y,z), Position3d(turtle_x, turtle_y, height), Position3d(vx, vy, 0), average_speed, 1/main_iter_rate);
+                // this does not use hector state to generate traj, this is because 
+                // the hector estimated state takes a few iterations to converge to 
+                // a reasonable value. this may cause crazy trajs 
+                traj.init_traj(Position3d(x,y,z), 
+                               Position3d(turtle_x, turtle_y, height), 
+                               Position3d(vx, vy, 0), average_speed, 1/main_iter_rate);
                 pub_traj.publish(traj.path);
                 
+                // set goal pose from path
                 if (traj.path.poses.size() > look_ahead_time - 1){
                     t = look_ahead_time;
-                } else {
+                } else { // reaching end of path
                     t = traj.path.poses.size() - 1;
                 }
                 traj_init = true;
             }
 
+            // set goal pose from path
             if (dist_euc(Position3d(x,y,z), target) < look_ahead){
                 if (t + 1 < traj.path.poses.size()){
                     t += 1;
-                } else {
+                } else { // reaching end of path
                     t = traj.path.poses.size() - 1;
                 }
             }
 
-            target = traj.get_next_goal(t);
-            if (dist_euc(Position3d(x,y,z), Position3d(turtle_x, turtle_y, height)) < close_enough){
+            target = traj.get_next_goal(t); // get goal from path
+
+            // if close enough, go to next state, replan trajectory
+            if (dist_euc(Position3d(x,y,z), 
+                         Position3d(turtle_x, turtle_y, height)) < close_enough){
                 state = GOAL;
                 traj_init = false;
             }
-
-            if (dist_euc(traj.get_next_goal(traj.path.poses.size() - 1), Position3d(turtle_x, turtle_y, height)) > close_enough){
+            // if turtle is too far away from end of trajectory, replan trajectory
+            else if (dist_euc(traj.get_next_goal(traj.path.poses.size() - 1), 
+                              Position3d(turtle_x, turtle_y, height)) > close_enough){
                 traj_init = false;
             }
-
-            if (dist_euc(Position3d(x,y,z), Position3d(turtle_x, turtle_y, height)) < look_ahead){
+            // if turtle is within look_ahead range, go straight to turtle
+            else if (dist_euc(Position3d(x,y,z), 
+                              Position3d(turtle_x, turtle_y, height)) < look_ahead){
                 target = Position3d(turtle_x, turtle_y, height);
                 traj_init = false;
             }
 
-            
             msg_target.point.x = target.x;
             msg_target.point.y = target.y;
             msg_target.point.z = height;
