@@ -344,7 +344,6 @@ void cbBaro(const hector_uav_msgs::Altimeter::ConstPtr &msg)
 // --------- Sonar ----------
 // function that checks whether hector is flying over obstacles from turtle occupancy grid
 // detects obstacle but sonar readings still a bit off nearer to walls
-// occasionally crashes motion node, to investigate why
 bool notOverObstacle(void)
 {
     if (!first_msg_received){
