@@ -16,6 +16,8 @@
 #include <opencv2/core/matx.hpp>
 #include <nav_msgs/Odometry.h> 
 
+#define PID_TESTING_SETPOINT 2 // Used for PID tuning
+
 #define NaN std::numeric_limits<double>::quiet_NaN()
 
 ros::ServiceClient en_mtrs;
@@ -155,12 +157,11 @@ int main(int argc, char **argv)
     cv::Vec3d e_prev = {0,0,0};
     cv::Vec3d lin_vel = {0,0,0};
 
-    // //variables used for pid tuning
+    // variables used for pid tuning
     double rise_time_start = -1;
     double rise_time_end = -1;
     double max_overshoot = 0;
 
-    double PID_TESTING_SETPOINT = 2;
     bool height_reached = false;
     
     
@@ -178,20 +179,23 @@ int main(int argc, char **argv)
         if (rotate){
             cmd_lin_vel_a = yaw_rate;
         }
+        // rotation about z-axis by angle a, R_hector/world
         cv::Matx33d rotation = { cos(a), sin(a), 0,
                                 -sin(a), cos(a), 0,
                                  0     , 0     , 1 };
 
-        if (pid_tuning_z){
+        // in PID tuning mode, force target to be PID tuning target
+        if (pid_tuning_z){ // PID tuning targets for height
             target_x = initial_x;
             target_y = initial_y;
             target_z = initial_z + PID_TESTING_SETPOINT;
-        } else if (pid_tuning_xy){
+        } else if (pid_tuning_xy){ // PID tuning targets for xy
+            // move hector to correct height before tuning xy PID
             if (abs(z - PID_TESTING_SETPOINT) > 0.2 && !height_reached){
                 target_x = initial_x;
                 target_y = initial_y;
                 target_z = PID_TESTING_SETPOINT;
-            } else {
+            } else { // hector reached correct height
                 height_reached = true;
                 target_x = initial_x + PID_TESTING_SETPOINT;
                 target_y = initial_y;
@@ -200,6 +204,7 @@ int main(int argc, char **argv)
                 
         }
 
+        // linear error terms
         double e_x = target_x - x;
         double e_y = target_y - y;
         double e_z = target_z - z;
@@ -209,65 +214,81 @@ int main(int argc, char **argv)
         lin_integral += lin_e * dt;
         e_prev = lin_e;
 
+        // PID gains
         cv::Vec3d Kp = {Kp_lin, Kp_lin, Kp_z};
         cv::Vec3d Ki = {Ki_lin, Ki_lin, Ki_z};
         cv::Vec3d Kd = {Kd_lin, Kd_lin, Kd_z};
 
+        // calculate PID values
         lin_vel = (Kp.mul(lin_e)) + (Ki.mul(lin_integral)) + (Kd.mul(lin_derivative));
-        lin_vel = rotation * lin_vel;
-        cmd_lin_vel_x = lin_vel(0);
-        cmd_lin_vel_y = lin_vel(1);
-        cmd_lin_vel_z = lin_vel(2);
+        lin_vel = rotation * lin_vel; // rotate to hector frame
+
+        // saturate velocities based on maximum permitted velocity
+        cmd_lin_vel_x = lin_vel(0); // curr x vel
+        cmd_lin_vel_y = lin_vel(1); // curr y vel
+        double curr_comb_vel = sqrt(pow(lin_vel(0), 2) + pow(lin_vel(1), 2)); // curr xy vel
+        if (curr_comb_vel > max_lin_vel) { // check if xy vel is more than max permitted
+            // decrease xy vel proportionately to within kinematic limits
+            cmd_lin_vel_x = lin_vel(0) / curr_comb_vel * max_lin_vel;
+            cmd_lin_vel_y = lin_vel(1) / curr_comb_vel * max_lin_vel;
+        }
+        cmd_lin_vel_z = std::min(lin_vel(2), max_z_vel); // saturate z vel
 
         // publish speeds
-        msg_cmd.linear.x = std::min(cmd_lin_vel_x, max_lin_vel);
-        msg_cmd.linear.y = std::min(cmd_lin_vel_y, max_lin_vel);
-        msg_cmd.linear.z = std::min(cmd_lin_vel_z, max_z_vel);
+        msg_cmd.linear.x = cmd_lin_vel_x;
+        msg_cmd.linear.y = cmd_lin_vel_y;
+        msg_cmd.linear.z = cmd_lin_vel_z;
         msg_cmd.angular.z = cmd_lin_vel_a;
         pub_cmd.publish(msg_cmd);
 
-        //pid tuning code for z
-        //PID target set as 2m, the actual height for the hector
-
+        // pid tuning code for z
+        // PID target set as 2m, the actual height for the hector
         if (pid_tuning_z){
-            if (z > 0.178 + (PID_TESTING_SETPOINT * 0.1) ) { //include the starting offset of 0.178
+            // record rise time start, include the starting offset of initial_z
+            if (z > initial_z + (PID_TESTING_SETPOINT * 0.1) ) {
                 if (rise_time_start == -1){
                     rise_time_start = ros::Time::now().toSec();
                     ROS_INFO("Start recording Z axis rise time");
                 }
             }
-            if (z >= 0.178 + (PID_TESTING_SETPOINT * 0.9)) { 
+            // record rise time end
+            if (z >= initial_z + (PID_TESTING_SETPOINT * 0.9)) { 
                 if (rise_time_end == -1){
                     rise_time_end = ros::Time::now().toSec();
                     ROS_INFO("End recording Z axis rise time");
 
                 }
-                if (z - (0.178 + PID_TESTING_SETPOINT) > max_overshoot){
-                    max_overshoot = z - (0.178 + PID_TESTING_SETPOINT);
+                // record max overshoot
+                if (z - (initial_z + PID_TESTING_SETPOINT) > max_overshoot){
+                    max_overshoot = z - (initial_z + PID_TESTING_SETPOINT);
                 }
             }
-
+            // rise time end reached, start showing rise time and overshoot
             if (rise_time_end > 0){
                 ROS_INFO_STREAM("Rise Time Z: " << (rise_time_end - rise_time_start));
                 ROS_INFO_STREAM("Max Overshoot Z:  " << 100 * max_overshoot / PID_TESTING_SETPOINT  << "%");
             }
         }
         
-        if (pid_tuning_xy && height_reached){
+        // PID target for xy set as 2m
+        if (pid_tuning_xy && height_reached){ // only tune xy when at correct height
+            // record rise time start
             if (x > initial_x + (0.1 *  PID_TESTING_SETPOINT) ){
                 if (rise_time_start == -1){
                     rise_time_start = ros::Time::now().toSec();
                 }
             }
+            // record rise time end
             if (x > initial_x + (0.9 * PID_TESTING_SETPOINT)){
                 if (rise_time_end == -1){
                     rise_time_end = ros::Time::now().toSec();
                 }
+                // record max overshoot
                 if (x - (initial_x + PID_TESTING_SETPOINT) > max_overshoot){
                     max_overshoot = x - (initial_x + PID_TESTING_SETPOINT);
                 }
             }
-
+            // rise time end reached, start showing rise time and overshoot
             if (rise_time_end > 0){
                 ROS_INFO_STREAM("Rise Time X:" << (rise_time_end - rise_time_start));
                 ROS_INFO_STREAM("Max Overshoot X:  " << 100 * max_overshoot / PID_TESTING_SETPOINT << "%");
