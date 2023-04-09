@@ -8,6 +8,10 @@
 #include <std_msgs/Empty.h>
 #include "common.hpp"
 
+// direction that turtle is moving
+#define TURTLE_DIR_FORWARD 1
+#define TURTLE_DIR_BACKWARD -1
+
 bool target_changed = false;
 Position target;
 void cbTarget(const geometry_msgs::PointStamped::ConstPtr &msg)
@@ -110,11 +114,24 @@ int main(int argc, char **argv)
     double prev_time = ros::Time::now().toSec();
 
     ////////////////// DECLARE VARIABLES HERE //////////////////
+    // initialise target heading
     double target_heading = heading(pos_rbt, target);
-    double direction = abs(limit_angle(target_heading-ang_rbt))<=M_PI/2 ? 1 : -1;
-    double e_ang_prev = direction == 1
-        ? limit_angle(target_heading - ang_rbt)
-        : limit_angle(target_heading - ang_rbt - M_PI/2);
+    // check direction to move
+    // > 90 degree movement: move backward
+    // <= 90 degree movement: move forward
+    int direction = TURTLE_DIR_FORWARD;
+    if (abs(limit_angle(target_heading-ang_rbt)) > M_PI/2) {
+        direction = TURTLE_DIR_BACKWARD;
+    }
+    // PID terms
+    // angular error between target and current heading
+    // moving forward: angular error
+    // moving backwards: angular error offset by 180 degrees
+    double e_ang_prev = limit_angle(target_heading - ang_rbt);
+    if (direction == TURTLE_DIR_BACKWARD) {
+        limit_angle(target_heading - ang_rbt - M_PI);
+    }
+    // linear error based on euclidean distance, accounting for direction
     double e_lin_prev = dist_euc(pos_rbt, target) * direction;
     double i_lin = 0; double i_ang = 0;
 
@@ -137,12 +154,27 @@ int main(int argc, char **argv)
             
             // error
             target_heading = heading(pos_rbt, target);
-            direction = abs(M_PI/2-abs(limit_angle(target_heading-ang_rbt))) < dir_threshold 
-                ? direction 
-                : (abs(limit_angle(target_heading-ang_rbt))<=M_PI/2 ? 1 : -1);
-            double e_ang = (direction == 1)
-                ? limit_angle(target_heading - ang_rbt)
-                : limit_angle(target_heading - ang_rbt - M_PI);
+            // if: angular error is outside a threshold from the 90 degree mark, 
+            // check which direction is necessary 
+            // else: do not directions to prevent random jerky motion
+            if (abs(M_PI/2-abs(limit_angle(target_heading-ang_rbt))) >= dir_threshold) {
+                // check direction to move
+                // > 90 degree movement: move backward
+                // <= 90 degree movement: move forward
+                if (abs(limit_angle(target_heading-ang_rbt))<=M_PI/2) {
+                    direction = TURTLE_DIR_FORWARD;
+                } else {
+                    direction = TURTLE_DIR_BACKWARD;
+                }
+            }
+            // angular error between target and current heading
+            // moving forward: angular error
+            // moving backwards: angular error offset by 180 degrees
+            double e_ang = limit_angle(target_heading - ang_rbt);
+            if (direction == TURTLE_DIR_BACKWARD) {
+                limit_angle(target_heading - ang_rbt - M_PI);
+            }
+            // linear error based on euclidean distance, accounting for direction
             double e_lin = dist_euc(pos_rbt, target) * direction;
 
             // PID
@@ -153,13 +185,23 @@ int main(int argc, char **argv)
             i_ang += Ki_ang * e_ang * dt;
             double d_ang = Kd_ang * (e_ang - e_ang_prev) / dt;
 
-            // set speed
-            double unsat_lin_vel = p_lin + i_lin + d_lin;
-            double sat_lin_acc = saturate(max_lin_acc, -max_lin_acc, (unsat_lin_vel-cmd_lin_vel)/dt);
-            cmd_lin_vel = saturate(max_lin_vel, -max_lin_vel, cmd_lin_vel+sat_lin_acc*dt)* (1 - abs(e_ang/(M_PI/2)));
-            double unsat_ang_vel = p_ang + i_ang + d_ang;
-            double sat_ang_acc = saturate(max_ang_acc, -max_ang_acc, (unsat_ang_vel-cmd_ang_vel)/dt);
-            cmd_ang_vel = saturate(max_ang_vel, -max_ang_vel, cmd_ang_vel+sat_ang_acc*dt);
+            // set linear speed
+            double unsat_lin_vel = p_lin + i_lin + d_lin; // vel from PID
+            double sat_lin_acc = saturate(max_lin_acc, -max_lin_acc, 
+                                          (unsat_lin_vel-cmd_lin_vel)/dt); // saturated acceleration
+            double cmd_lin_vel_bef_sat = 
+                (cmd_lin_vel+sat_lin_acc*dt)*(1 - abs(e_ang/(M_PI/2))); // permitted velocity with coupling
+            cmd_lin_vel = 
+                saturate(max_lin_vel, -max_lin_vel, cmd_lin_vel_bef_sat); // final saturated vel cmd
+
+            // set angular speed
+            double unsat_ang_vel = p_ang + i_ang + d_ang; // vel from PID
+            double sat_ang_acc = saturate(max_ang_acc, -max_ang_acc, 
+                                          (unsat_ang_vel-cmd_ang_vel)/dt); // saturated acceleration
+            cmd_ang_vel = 
+                saturate(max_ang_vel, -max_ang_vel, cmd_ang_vel+sat_ang_acc*dt); // final saturated vel cmd
+
+            // update previous linear and angular error
             e_lin_prev = e_lin;
             e_ang_prev = e_ang;
 
