@@ -11,6 +11,7 @@
 #include <sensor_msgs/Range.h>                       // subscribe to sonar
 #include <nav_msgs/Odometry.h>                       // subscribe to ground truth topic
 #include <std_srvs/Empty.h>                          // Service to calrbrate motors
+#include <nav_msgs/OccupancyGrid.h>                  // subscribe to turtle inflation
 #include <opencv2/core/core.hpp>
 #include "common.hpp"
 
@@ -21,6 +22,13 @@ bool verbose, use_ground_truth, debug, enable_baro, enable_magnet, enable_sonar,
 
 // others
 bool ready = false; // signal to topics to begin
+
+// --------- INFLATION FROM TURTLE ----------
+nav_msgs::OccupancyGrid turtle_inflation;
+void cbTurtleInf(const nav_msgs::OccupancyGrid &msg)
+{
+    turtle_inflation = msg;
+}
 
 // --------- PREDICTION WITH IMU ----------
 const double G = 9.8;
@@ -332,6 +340,21 @@ void cbBaro(const hector_uav_msgs::Altimeter::ConstPtr &msg)
 }
 
 // --------- Sonar ----------
+// function that checks whether hector is flying over obstacles from turtle occupancy grid
+bool notOverObstacle(void)
+{
+    // convert current hector position to index for occupancy grid
+    int ind_x = round((X(0) - turtle_inflation.info.origin.position.x)/turtle_inflation.info.resolution);
+    int ind_y = round((Y(0) - turtle_inflation.info.origin.position.y)/turtle_inflation.info.resolution);
+    // check if hector in turtle's inflation zone
+    if (turtle_inflation.data[turtle_inflation.info.width*ind_x+ind_y] == 1)
+    {
+        ROS_INFO("Flying over obstacle!!");
+        return false;
+    }
+    return true;
+}
+
 double z_snr = NaN;
 double r_snr_z;
 // EKF Correction Stuff for GPS
@@ -348,7 +371,10 @@ void cbSonar(const sensor_msgs::Range::ConstPtr &msg)
     double h_snr = Z(0,0);
 
     // EKF correction
-    ekfCorrectionZ(z_snr, h_snr, H_snr, V_snr, r_snr_z, 0);  
+    if (notOverObstacle())
+    {
+        ekfCorrectionZ(z_snr, h_snr, H_snr, V_snr, r_snr_z, 0);  
+    }
 
     // for variance calculation
     if (debug) {
@@ -451,6 +477,7 @@ int main(int argc, char **argv)
     ros::Subscriber sub_sonar = nh.subscribe<sensor_msgs::Range>("sonar_height", 1, &cbSonar);
     if (!enable_sonar)
         sub_sonar.shutdown();
+    ros::Subscriber sub_t_inf = nh.subscribe("/turtle/grid/inflation", 1, &cbTurtleInf);
 
     // --------- Publishers ----------
     ros::Publisher pub_pose = nh.advertise<geometry_msgs::PoseWithCovarianceStamped>("pose", 1, true);
