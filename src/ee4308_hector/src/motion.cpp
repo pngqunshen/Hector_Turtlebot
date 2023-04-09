@@ -25,9 +25,11 @@ bool ready = false; // signal to topics to begin
 
 // --------- INFLATION FROM TURTLE ----------
 nav_msgs::OccupancyGrid turtle_inflation;
+bool first_msg_received = false;
 void cbTurtleInf(const nav_msgs::OccupancyGrid &msg)
 {
     turtle_inflation = msg;
+    first_msg_received = true;
 }
 
 // --------- PREDICTION WITH IMU ----------
@@ -345,6 +347,9 @@ void cbBaro(const hector_uav_msgs::Altimeter::ConstPtr &msg)
 // occasionally crashes motion node, to investigate why
 bool notOverObstacle(void)
 {
+    if (!first_msg_received){
+        return false;
+    }
     // convert current hector position to index for occupancy grid
     int ind_x = round((X(0) - turtle_inflation.info.origin.position.x)/turtle_inflation.info.resolution);
     int ind_y = round((Y(0) - turtle_inflation.info.origin.position.y)/turtle_inflation.info.resolution);
