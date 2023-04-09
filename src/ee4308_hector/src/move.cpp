@@ -227,23 +227,21 @@ int main(int argc, char **argv)
         pub_cmd.publish(msg_cmd);
 
         //pid tuning code for z
-        //PID target set as 2m, the actual height for the hector
-
         if (pid_tuning_z){
-            if (z > 0.178 + (PID_TESTING_SETPOINT * 0.1) ) { //include the starting offset of 0.178
+            if (z > initial_z + (PID_TESTING_SETPOINT * 0.1) ) { //include the starting offset of 0.178
                 if (rise_time_start == -1){
                     rise_time_start = ros::Time::now().toSec();
                     ROS_INFO("Start recording Z axis rise time");
                 }
             }
-            if (z >= 0.178 + (PID_TESTING_SETPOINT * 0.9)) { 
+            if (z >= initial_z + (PID_TESTING_SETPOINT * 0.9)) { 
                 if (rise_time_end == -1){
                     rise_time_end = ros::Time::now().toSec();
                     ROS_INFO("End recording Z axis rise time");
 
                 }
-                if (z - (0.178 + PID_TESTING_SETPOINT) > max_overshoot){
-                    max_overshoot = z - (0.178 + PID_TESTING_SETPOINT);
+                if (z - (initial_z + PID_TESTING_SETPOINT) > max_overshoot){
+                    max_overshoot = z - (initial_z + PID_TESTING_SETPOINT);
                 }
             }
 
