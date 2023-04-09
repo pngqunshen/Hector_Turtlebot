@@ -256,7 +256,6 @@ int main(int argc, char **argv)
                 if (rise_time_end == -1){
                     rise_time_end = ros::Time::now().toSec();
                     ROS_INFO("End recording Z axis rise time");
-
                 }
                 // record max overshoot
                 if (z - (initial_z + PID_TESTING_SETPOINT) > max_overshoot){

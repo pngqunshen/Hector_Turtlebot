@@ -252,7 +252,7 @@ int main(int argc, char **argv)
 
         // remove this block comment (1/2)
         //// IMPLEMENT ////
-        if (state == TAKEOFF) // takeoff in FSM
+        if (state == TAKEOFF)
         {   // Initial State
             // Disable Rotate
             msg_rotate.data = false;    
@@ -305,9 +305,7 @@ int main(int argc, char **argv)
             pub_rotate.publish(msg_rotate);
 
             if (!traj_init){
-                // this does not use hector state to generate traj, this is because 
-                // the hector estimated state takes a few iterations to converge to 
-                // a reasonable value. this may cause crazy trajs 
+                // get trajectory
                 traj.init_traj(Position3d(x,y,z), 
                                Position3d(turtle_x, turtle_y, height), 
                                Position3d(vx, vy, 0), average_speed, 1/main_iter_rate);
@@ -319,7 +317,7 @@ int main(int argc, char **argv)
                 } else { // reaching end of path
                     t = traj.path.poses.size() - 1;
                 }
-                traj_init = true;
+                traj_init = true; // prevent init again
             }
 
             // set goal pose from path
@@ -363,32 +361,39 @@ int main(int argc, char **argv)
             pub_rotate.publish(msg_rotate);
 
             if (!traj_init){
-                traj.init_traj(Position3d(x,y,z), Position3d(initial_x, initial_y, height), Position3d(vx, vy, 0), average_speed, 1/main_iter_rate);
+                // get trajectory
+                traj.init_traj(Position3d(x,y,z), 
+                               Position3d(initial_x, initial_y, height), 
+                               Position3d(vx, vy, 0), average_speed, 1/main_iter_rate);
                 pub_traj.publish(traj.path);
                 
+                // set goal pose from path
                 if (traj.path.poses.size() > look_ahead_time - 1){
                     t = look_ahead_time;
-                } else {
+                } else { // reaching end of path
                     t = traj.path.poses.size() - 1;
                 }
-                traj_init = true;
+                traj_init = true; // prevent init again
             }
 
+            // set goal pose from path
             if (dist_euc(Position3d(x,y,z), target) < look_ahead){
                 if (t + 1 < traj.path.poses.size()){
                     t += 1;
-                } else {
+                } else { // reaching end of path
                     t = traj.path.poses.size() - 1;
                 }
             }
-            target = traj.get_next_goal(t);
+            target = traj.get_next_goal(t); // get goal from path
 
+            // if close enough, go to next state, replan trajectory
             if (dist_euc(Position3d(x,y,z), Position3d(initial_x, initial_y, height)) < close_enough){
-                if (!nh.param("/turtle/run", false))
-                { // use this if else case to track when the turtle reaches the final goal
+                // use this if else case to track when the turtle reaches the final goal
+                if (!nh.param("/turtle/run", false)) // go to land
+                {
                     state = LAND;
                 }
-                else
+                else // go back to turtle
                 {
                     state = TURTLE;
                 }
@@ -405,29 +410,34 @@ int main(int argc, char **argv)
             pub_rotate.publish(msg_rotate);
 
             if (!traj_init){
-                traj.init_traj(Position3d(x,y,z), Position3d(goal_x, goal_y, height), Position3d(vx, vy, 0), average_speed, 1/main_iter_rate);
+                // get trajectory
+                traj.init_traj(Position3d(x,y,z), 
+                               Position3d(goal_x, goal_y, height), 
+                               Position3d(vx, vy, 0), average_speed, 1/main_iter_rate);
                 pub_traj.publish(traj.path);
                 
+                // set goal pose from path
                 if (traj.path.poses.size() > look_ahead_time - 1){
                     t = look_ahead_time;
-                } else {
+                } else { // reaching end of path
                     t = traj.path.poses.size() - 1;
                 }
-                traj_init = true;
+                traj_init = true; // prevent init again
             }
-
+            // set goal pose from path
             if (dist_euc(Position3d(x,y,z), target) < look_ahead){
                 if (t + 1 < traj.path.poses.size()){
                     t += 1;
-                } else {
+                } else { // reaching end of path
                     t = traj.path.poses.size() - 1;
                 }
             }
 
-            target = traj.get_next_goal(t);
+            target = traj.get_next_goal(t); // get goal from path
 
+            // if close enough, go to next state, replan trajectory
             if (dist_euc(Position3d(x,y,z), Position3d(goal_x, goal_y, height)) < close_enough){
-                state = START;
+                state = START; // go to start
                 traj_init = false;
             }
 
@@ -442,28 +452,34 @@ int main(int argc, char **argv)
             pub_rotate.publish(msg_rotate);
 
             if (!traj_init){
-                traj.init_traj(Position3d(x,y,z), Position3d(initial_x, initial_y, initial_z), Position3d(vx, vy, 0), average_speed_z, 1/main_iter_rate);
+                // get trajectory
+                traj.init_traj(Position3d(x,y,z), 
+                               Position3d(initial_x, initial_y, initial_z), 
+                               Position3d(vx, vy, 0), average_speed_z, 1/main_iter_rate);
                 pub_traj.publish(traj.path);
                 
+                // set goal pose from path
                 if (traj.path.poses.size() > look_ahead_time_z - 1){
                     t = look_ahead_time_z;
-                } else {
+                } else { // reaching end of path
                     t = traj.path.poses.size() - 1;
                 }
-                traj_init = true;
+                traj_init = true; // prevent init again
             }
 
-            target = traj.get_next_goal(t);
+            target = traj.get_next_goal(t); // get goal from path
 
+            // set goal pose from path
             if (dist_euc(Position3d(x,y,z), target) < look_ahead){
                 if (t + 1 < traj.path.poses.size()){
                     t += 1;
-                } else {
+                } else { // reaching end of path
                     t = traj.path.poses.size() - 1;
                 }
             }
-
-            if (dist_euc(Position3d(x,y,z), Position3d(initial_x, initial_y, initial_z)) < close_enough){
+            // if close enough, last state, break from loop
+            if (dist_euc(Position3d(x,y,z), 
+                         Position3d(initial_x, initial_y, initial_z)) < close_enough){
                 ROS_INFO(" Reached Last Target");
                 break;
             }
