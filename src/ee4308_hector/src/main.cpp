@@ -252,8 +252,6 @@ int main(int argc, char **argv)
 
         // remove this block comment (1/2)
         //// IMPLEMENT ////
-        double time_target = ros::Time::now().toSec() + 1/main_iter_rate;
-        double time_now = ros::Time::now().toSec();
         if (state == TAKEOFF) // takeoff in FSM
         {   // Initial State
             // Disable Rotate

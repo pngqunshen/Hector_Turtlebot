@@ -241,24 +241,36 @@ int main(int argc, char **argv)
         msg_cmd.angular.z = cmd_lin_vel_a;
         pub_cmd.publish(msg_cmd);
 
+<<<<<<< HEAD
         // pid tuning code for z
         // PID target set as 2m, the actual height for the hector
         if (pid_tuning_z){
             // record rise time start, include the starting offset of initial_z
             if (z > initial_z + (PID_TESTING_SETPOINT * 0.1) ) {
+=======
+        //pid tuning code for z
+        if (pid_tuning_z){
+            if (z > initial_z + (PID_TESTING_SETPOINT * 0.1) ) { //include the starting offset of 0.178
+>>>>>>> 954e8fa6774f440eec125d7b92c59046b1f48d0e
                 if (rise_time_start == -1){
                     rise_time_start = ros::Time::now().toSec();
                     ROS_INFO("Start recording Z axis rise time");
                 }
             }
+<<<<<<< HEAD
             // record rise time end
+=======
+>>>>>>> 954e8fa6774f440eec125d7b92c59046b1f48d0e
             if (z >= initial_z + (PID_TESTING_SETPOINT * 0.9)) { 
                 if (rise_time_end == -1){
                     rise_time_end = ros::Time::now().toSec();
                     ROS_INFO("End recording Z axis rise time");
 
                 }
+<<<<<<< HEAD
                 // record max overshoot
+=======
+>>>>>>> 954e8fa6774f440eec125d7b92c59046b1f48d0e
                 if (z - (initial_z + PID_TESTING_SETPOINT) > max_overshoot){
                     max_overshoot = z - (initial_z + PID_TESTING_SETPOINT);
                 }
